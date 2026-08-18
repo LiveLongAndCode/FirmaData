@@ -46,7 +46,9 @@ public sealed class CachingIndustryStatisticsProvider(IIndustryStatisticsProvide
 
             // Only a definitive answer is cached -- a transient Unavailable is left to the
             // resilience pipeline (section 6.1) to retry, not remembered as fact for hours.
-            if (result.IsSuccess || result.Error.Type == ResultErrorType.NotFound)
+            // IndustryCodeNotSupported is just as definitive as NotFound (a DB07/DB25 mismatch
+            // doesn't change within the negative-cache window), so it's cached the same way.
+            if (result.IsSuccess || result.Error.Type is ResultErrorType.NotFound or ResultErrorType.IndustryCodeNotSupported)
             {
                 cache.Set(key, result, new MemoryCacheEntryOptions
                 {

@@ -54,6 +54,17 @@ public class CompanyViewModelMappingTests
     }
 
     [Fact]
+    public void ToDetailViewModel_WhenIndustryCodeNotSupported_ShowsDanishNotice()
+    {
+        var response = Response("IndustryCodeNotSupported", null);
+
+        var model = response.ToDetailViewModel(2022);
+
+        model.StatisticsAvailable.Should().BeFalse();
+        model.StatisticsNotice.Should().Be("Branchekoden understøttes endnu ikke af Danmarks Statistik.");
+    }
+
+    [Fact]
     public void ToDetailViewModel_WhenEmployeeCountIsNull_DisplaysUkendtRatherThanZero()
     {
         var company = LbForsikring with { EmployeeCount = null };

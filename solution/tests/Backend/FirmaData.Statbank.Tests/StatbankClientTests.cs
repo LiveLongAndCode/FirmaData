@@ -107,6 +107,36 @@ public class StatbankClientTests
     }
 
     [Fact]
+    public async Task GetAsync_WhenYearUnavailableWithAnUnrelatedMessage_StillReturnsNotFound()
+    {
+        // A message present but not naming BRANCHE07 -- the year-unavailable case, not the
+        // industry-code case, so it must not be misclassified.
+        var handler = StubHttpMessageHandler.Returning(
+            HttpStatusCode.BadRequest, """{"errorTypeCode":"EXTRACT-NOTFOUND","message":"TID value 2099 is not valid"}""");
+        var sut = CreateClient(handler);
+
+        var result = await sut.GetAsync(Erhv651200, Year2022, CancellationToken.None);
+
+        result.IsFailure.Should().BeTrue();
+        result.Error.Type.Should().Be(ResultErrorType.NotFound);
+    }
+
+    [Fact]
+    public async Task GetAsync_WhenIndustryCodeNotRecognised_ReturnsIndustryCodeNotSupported()
+    {
+        // Same errorTypeCode as the year-unavailable case, but the message explicitly names the
+        // rejected variable -- plan fase 6, F5's DB25/DB07 classification-drift scenario.
+        var handler = StubHttpMessageHandler.Returning(
+            HttpStatusCode.BadRequest, """{"errorTypeCode":"EXTRACT-NOTFOUND","message":"BRANCHE07 value 651210 is not valid"}""");
+        var sut = CreateClient(handler);
+
+        var result = await sut.GetAsync(Erhv651200, Year2022, CancellationToken.None);
+
+        result.IsFailure.Should().BeTrue();
+        result.Error.Type.Should().Be(ResultErrorType.IndustryCodeNotSupported);
+    }
+
+    [Fact]
     public async Task GetAsync_WhenServerReturnsError_ReturnsUnavailable()
     {
         var handler = StubHttpMessageHandler.Returning(HttpStatusCode.InternalServerError);
@@ -119,15 +149,17 @@ public class StatbankClientTests
     }
 
     [Fact]
-    public async Task GetAsync_WithUnrecognisedBadRequestBody_ReturnsUnavailable()
+    public async Task GetAsync_WithUnrecognisedBadRequestBody_ReturnsUnexpectedNotUnavailable()
     {
+        // Any 400 other than EXTRACT-NOTFOUND is a broken integration, not a transient outage --
+        // Unexpected (502), not Unavailable (503 + Retry-After), since retrying can't help.
         var handler = StubHttpMessageHandler.Returning(HttpStatusCode.BadRequest, """{"errorTypeCode":"SOMETHING-ELSE"}""");
         var sut = CreateClient(handler);
 
         var result = await sut.GetAsync(Erhv651200, Year2022, CancellationToken.None);
 
         result.IsFailure.Should().BeTrue();
-        result.Error.Type.Should().Be(ResultErrorType.Unavailable);
+        result.Error.Type.Should().Be(ResultErrorType.Unexpected);
     }
 
     [Fact]

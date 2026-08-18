@@ -57,13 +57,26 @@ public sealed class StatbankClient(HttpClient httpClient, IMemoryCache cache, IO
                 // An unavailable year is a deterministic client error, not an outage -- mapped to
                 // NotFound so the orchestrator (plan section 4.3) reports NotAvailableForYear
                 // rather than SourceUnavailable, and so the resilience pipeline never retries it.
+                // EXTRACT-NOTFOUND covers two distinct causes sharing one error code: the year
+                // has no data, or the industry code itself isn't one ERHV1 (DB07) recognises
+                // (plan fase 6, F5) -- only the latter, identified by the error message
+                // explicitly naming BRANCHE07, gets the more specific classification.
                 var errorBody = await TryReadErrorAsync(response, ct);
                 if (errorBody?.ErrorTypeCode == "EXTRACT-NOTFOUND")
                 {
+                    if (IndicatesUnsupportedIndustryCode(errorBody.Message))
+                    {
+                        return Result.IndustryCodeNotSupported(
+                            $"Industry code {code} is not recognised by Statbank's ERHV1 table.");
+                    }
+
                     return Result.NotFound($"No industry statistics available for {year} (industry {code}).");
                 }
 
-                return Result.Unavailable($"Statbank API rejected the request: {errorBody?.ErrorTypeCode ?? "400 Bad Request"}.");
+                // Any other 400 is a broken integration (a rejected variable, a contract drift),
+                // not a transient outage -- Unexpected (mapped to 502) rather than Unavailable
+                // (503 + Retry-After), since a retry can never help.
+                return Result.Unexpected($"Statbank API rejected the request: {errorBody?.ErrorTypeCode ?? "400 Bad Request"}.");
             }
 
             if (!response.IsSuccessStatusCode)
@@ -173,6 +186,12 @@ public sealed class StatbankClient(HttpClient httpClient, IMemoryCache cache, IO
             return years.Count > 0 ? years : null;
         }
     }
+
+    // Best-effort classification pending live confirmation of the real error message shape (see
+    // StatbankErrorResponse) -- deliberately conservative: anything not explicitly naming
+    // BRANCHE07 falls through to the existing NotAvailableForYear behaviour rather than guessing.
+    private static bool IndicatesUnsupportedIndustryCode(string? errorMessage) =>
+        errorMessage is not null && errorMessage.Contains("BRANCHE07", StringComparison.OrdinalIgnoreCase);
 
     private static async Task<StatbankErrorResponse?> TryReadErrorAsync(HttpResponseMessage response, CancellationToken ct)
     {
