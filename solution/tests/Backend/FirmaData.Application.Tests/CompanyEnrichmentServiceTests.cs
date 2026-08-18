@@ -80,6 +80,22 @@ public class CompanyEnrichmentServiceTests
     }
 
     [Fact]
+    public async Task EnrichByCvrAsync_WhenIndustryCodeNotSupported_ReturnsMasterDataWithIndustryCodeNotSupported()
+    {
+        var (directory, statistics, sut) = CreateSut();
+        directory.GetByCvrAsync(Cvr, Arg.Any<CancellationToken>()).Returns(LbForsikring);
+        statistics.GetAsync(Erhv651200, Year2022, Arg.Any<CancellationToken>())
+            .Returns(Result.IndustryCodeNotSupported("Industry code not recognised by ERHV1."));
+
+        var result = await sut.EnrichByCvrAsync(Cvr, Year2022, CancellationToken.None);
+
+        result.IsSuccess.Should().BeTrue();
+        result.Value.Company.Should().Be(LbForsikring);
+        result.Value.Statistics.Should().BeNull();
+        result.Value.StatisticsStatus.Should().Be(EnrichmentStatus.IndustryCodeNotSupported);
+    }
+
+    [Fact]
     public async Task EnrichByCvrAsync_WhenCvrLookupFails_PropagatesErrorAndNeverCallsStatistics()
     {
         var (directory, statistics, sut) = CreateSut();
@@ -162,6 +178,30 @@ public class CompanyEnrichmentServiceTests
         result.IsSuccess.Should().BeTrue();
         result.Value.Should().BeEmpty();
         await statistics.DidNotReceive().GetAsync(Arg.Any<IndustryCode>(), Arg.Any<StatisticsYear>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task SearchAndEnrichAsync_WhenOneIndustryCodeIsNotSupported_OnlyThatMatchIsDegraded()
+    {
+        // F5 point 2: an IndustryCodeNotSupported result from one industry code degrades only the
+        // companies sharing that code, not the whole search response.
+        var (directory, statistics, sut) = CreateSut();
+        var unsupportedIndustry = IndustryCode.TryCreate("999900").Value;
+        var okCompany = LbForsikring;
+        var affectedCompany = LbForsikring with { Cvr = CvrNumber.TryCreate("25313763").Value, IndustryCode = unsupportedIndustry };
+
+        directory.SearchByNameAsync("lb", Arg.Any<CancellationToken>())
+            .Returns(Result<IReadOnlyList<Company>>.Success([okCompany, affectedCompany]));
+        statistics.GetAsync(Erhv651200, Year2022, Arg.Any<CancellationToken>()).Returns(Statistics());
+        statistics.GetAsync(unsupportedIndustry, Year2022, Arg.Any<CancellationToken>())
+            .Returns(Result.IndustryCodeNotSupported("Industry code not recognised by ERHV1."));
+
+        var result = await sut.SearchAndEnrichAsync("lb", Year2022, 10, CancellationToken.None);
+
+        result.IsSuccess.Should().BeTrue();
+        result.Value.Should().HaveCount(2);
+        result.Value.Single(company => company.Company == okCompany).StatisticsStatus.Should().Be(EnrichmentStatus.Ok);
+        result.Value.Single(company => company.Company == affectedCompany).StatisticsStatus.Should().Be(EnrichmentStatus.IndustryCodeNotSupported);
     }
 
     [Fact]

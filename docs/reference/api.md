@@ -95,6 +95,15 @@ header, which RFC 9111 removed from the spec.
 CVR is the core source; statistics are an enrichment. A CVR failure is a real failure; a Statbank
 failure is a degraded response.
 
+`statisticsStatus` is one of:
+
+| Value | Meaning |
+| --- | --- |
+| `Ok` | Statistics were retrieved for the requested (or resolved) year |
+| `NotAvailableForYear` | The requested year has no data in Statbank's ERHV1 table |
+| `IndustryCodeNotSupported` | The industry code is valid but ERHV1 (DB07) doesn't recognise it — e.g. a code from CVR's newer DB25 revision. See [gotchas](gotchas.md) |
+| `SourceUnavailable` | Statbank itself couldn't be reached or returned an unparseable response |
+
 ### Example: degraded response
 
 `GET /api/v1/companies/16500836` where Statbank is unreachable — still `200 OK`, with response

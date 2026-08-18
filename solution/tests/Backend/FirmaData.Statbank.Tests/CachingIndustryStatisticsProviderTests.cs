@@ -62,6 +62,23 @@ public class CachingIndustryStatisticsProviderTests
     }
 
     [Fact]
+    public async Task GetAsync_WithIndustryCodeNotSupportedResult_CachesTheNegativeResultToo()
+    {
+        // Just as definitive as NotFound -- a DB07/DB25 classification mismatch doesn't change
+        // within the negative-cache window (plan fase 6, F5).
+        var (inner, sut) = CreateSut();
+        inner.GetAsync(Erhv651200, Year2022, Arg.Any<CancellationToken>())
+            .Returns(Result.IndustryCodeNotSupported("Industry code not recognised."));
+
+        await sut.GetAsync(Erhv651200, Year2022, CancellationToken.None);
+        var result = await sut.GetAsync(Erhv651200, Year2022, CancellationToken.None);
+
+        result.IsFailure.Should().BeTrue();
+        result.Error.Type.Should().Be(ResultErrorType.IndustryCodeNotSupported);
+        await inner.Received(1).GetAsync(Erhv651200, Year2022, Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
     public async Task GetAsync_WithUnavailableResult_DoesNotCacheIt()
     {
         // A transient outage is left to the resilience pipeline to retry on the next call, not
