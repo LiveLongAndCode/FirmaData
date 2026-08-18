@@ -1,0 +1,44 @@
+root = true
+
+[*]
+indent_style = space
+end_of_line = lf
+insert_final_newline = true
+trim_trailing_whitespace = true
+charset = utf-8
+
+[*.cs]
+indent_size = 4
+
+[*.{json,yml,yaml}]
+indent_size = 2
+
+[*.md]
+trim_trailing_whitespace = false
+
+# C# language conventions
+[*.cs]
+dotnet_sort_system_directives_first = true
+csharp_using_directive_placement = outside_namespace:warning
+csharp_prefer_braces = true:warning
+csharp_style_namespace_declarations = file_scoped:warning
+csharp_style_var_for_built_in_types = true:suggestion
+csharp_style_var_when_type_is_apparent = true:suggestion
+
+# Task requirement: no top-level statements. IDE0211 (Convert to Program.Main style program)
+# fires on any Program.cs written with top-level statements; TreatWarningsAsErrors in
+# Directory.Build.props turns that into a build failure rather than a silent suggestion.
+csharp_style_prefer_top_level_statements = false:error
+dotnet_style_require_accessibility_modifiers = always:warning
+dotnet_style_readonly_field = true:warning
+dotnet_code_quality_unused_parameters = non_public:suggestion
+
+# Nullable-related diagnostics are errors, not suggestions -- Directory.Build.props
+# enables Nullable and TreatWarningsAsErrors, so this just names the intent here too.
+dotnet_diagnostic.CS8600.severity = error
+dotnet_diagnostic.CS8602.severity = error
+dotnet_diagnostic.CS8603.severity = error
+dotnet_diagnostic.CS8625.severity = error
+
+[*.{csproj,props,targets}]
+indent_size = 2
