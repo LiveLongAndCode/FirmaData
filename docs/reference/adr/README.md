@@ -14,3 +14,4 @@ decisions made after the initial build. Smaller, implementation-level decisions 
 | [0005](0005-hermetic-tests-with-opt-in-live-smoke.md) | Fully hermetic test suite, with an opt-in live smoke test |
 | [0006](0006-danish-ui-english-codebase.md) | Danish UI language, English codebase and API contract |
 | [0007](0007-net10-upgrade.md) | Upgrade from .NET 8 to .NET 10, OpenAPI generation moved off Swashbuckle |
+| [0008](0008-statbank-parsing-hardening.md) | Strict Statbank CSV validation, `Unexpected` mapped to 502 |

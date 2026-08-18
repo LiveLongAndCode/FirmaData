@@ -59,7 +59,7 @@ to HTTP status codes centrally:
 | `Validation` | 400 | — |
 | `NotFound` | 404 | — |
 | `Unavailable` | 503 | `Retry-After: 30` |
-| `Unexpected` | 500 | — |
+| `Unexpected` | 502 | An upstream response could not be interpreted — a broken integration, not a genuine crash. Distinct from an unhandled exception, which is still a plain 500. |
 
 Every error response carries the request's correlation id, matching the one on the log lines for
 that request: it comes back on the `X-Correlation-Id` response header, and again as

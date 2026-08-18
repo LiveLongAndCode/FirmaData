@@ -6,7 +6,9 @@ using Microsoft.AspNetCore.Mvc;
 namespace FirmaData.Api.Errors;
 
 // Maps a ResultError onto the status-code table from plan section 5.2 / 3.1: Validation -> 400,
-// NotFound -> 404, Unavailable -> 503 (+ Retry-After, R10), anything else -> 500.
+// NotFound -> 404, Unavailable -> 503 (+ Retry-After, R10), Unexpected -> 502 (an upstream
+// response that could not be interpreted -- a broken integration, not this service's own fault),
+// anything else -> 500 (GlobalExceptionHandler's genuinely unhandled exceptions).
 internal static class ResultErrorMapping
 {
     private const int RetryAfterSeconds = 30;
@@ -18,6 +20,7 @@ internal static class ResultErrorMapping
             ResultErrorType.Validation => StatusCodes.Status400BadRequest,
             ResultErrorType.NotFound => StatusCodes.Status404NotFound,
             ResultErrorType.Unavailable => StatusCodes.Status503ServiceUnavailable,
+            ResultErrorType.Unexpected => StatusCodes.Status502BadGateway,
             _ => StatusCodes.Status500InternalServerError,
         };
 

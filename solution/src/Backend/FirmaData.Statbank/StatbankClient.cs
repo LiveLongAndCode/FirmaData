@@ -71,20 +71,20 @@ public sealed class StatbankClient(HttpClient httpClient, IMemoryCache cache, IO
                 return Result.Unavailable($"Statbank API responded with status {(int)response.StatusCode}.");
             }
 
-            Dictionary<string, string> values;
+            long? workplaces, employees, fullTimeEquivalents;
+            decimal? wageSum;
             try
             {
-                values = await ParseCsvAsync(response, ct);
+                var values = await ParseCsvAsync(response, code, year, ct);
+                workplaces = ParseNullableLong(values["ARBSTED"]);
+                employees = ParseNullableLong(values["ANSATTE"]);
+                fullTimeEquivalents = ParseNullableLong(values["FULDBESK"]);
+                wageSum = ParseNullableDecimal(values["LØNSUM"]);
             }
             catch (FormatException ex)
             {
                 return Result.Unexpected($"Statbank API returned a response that could not be parsed: {ex.Message}");
             }
-
-            var workplaces = ParseNullableLong(values.GetValueOrDefault("ARBSTED"));
-            var employees = ParseNullableLong(values.GetValueOrDefault("ANSATTE"));
-            var fullTimeEquivalents = ParseNullableLong(values.GetValueOrDefault("FULDBESK"));
-            var wageSum = ParseNullableDecimal(values.GetValueOrDefault("LØNSUM"));
 
             // An unrecognised industry code doesn't error -- Statbank buckets it under the
             // "999999 Uoplyst aktivitet" catch-all and reports zero across every measure. A
@@ -186,11 +186,19 @@ public sealed class StatbankClient(HttpClient httpClient, IMemoryCache cache, IO
         }
     }
 
+    private static readonly string[] RequiredMeasures = ["ARBSTED", "ANSATTE", "FULDBESK", "LØNSUM"];
+
     // Statbank's CSV response is semicolon-separated and begins with a UTF-8 BOM
     // (BRANCHE07;TAL;TID;INDHOLD header, one row per requested TAL code). StreamReader with
     // BOM detection strips it; re-encoding through a plain string would leave a stray U+FEFF
     // on the first column name.
-    private static async Task<Dictionary<string, string>> ParseCsvAsync(HttpResponseMessage response, CancellationToken ct)
+    //
+    // Every row is validated against the cell that was actually requested (BRANCHE07/TID) and
+    // against the shape of the request itself (all four TAL measures present, no duplicates),
+    // rather than trusting positional columns -- a contract drift here (reordered columns, a
+    // silently substituted industry code) is a broken integration, not data to render as fact.
+    private static async Task<Dictionary<string, string>> ParseCsvAsync(
+        HttpResponseMessage response, IndustryCode code, StatisticsYear year, CancellationToken ct)
     {
         await using var stream = await response.Content.ReadAsStreamAsync(ct);
         using var reader = new StreamReader(stream, Encoding.UTF8, detectEncodingFromByteOrderMarks: true);
@@ -201,7 +209,24 @@ public sealed class StatbankClient(HttpClient httpClient, IMemoryCache cache, IO
             throw new FormatException("Statbank CSV response was empty.");
         }
 
-        var values = new Dictionary<string, string>();
+        var columnIndex = header.Split(';')
+            .Select((name, index) => (name, index))
+            .ToDictionary(pair => pair.name, pair => pair.index, StringComparer.Ordinal);
+
+        int GetColumn(string name) => columnIndex.TryGetValue(name, out var index)
+            ? index
+            : throw new FormatException($"Statbank CSV response is missing the '{name}' column.");
+
+        var branchColumn = GetColumn("BRANCHE07");
+        var measureColumn = GetColumn("TAL");
+        var periodColumn = GetColumn("TID");
+        var contentColumn = GetColumn("INDHOLD");
+        var minColumnCount = new[] { branchColumn, measureColumn, periodColumn, contentColumn }.Max() + 1;
+
+        var expectedBranch = code.Value;
+        var expectedPeriod = year.Value.ToString(CultureInfo.InvariantCulture);
+
+        var values = new Dictionary<string, string>(StringComparer.Ordinal);
         string? line;
         while ((line = await reader.ReadLineAsync(ct)) is not null)
         {
@@ -211,27 +236,55 @@ public sealed class StatbankClient(HttpClient httpClient, IMemoryCache cache, IO
             }
 
             var columns = line.Split(';');
-            if (columns.Length < 4)
+            if (columns.Length < minColumnCount)
             {
-                continue;
+                throw new FormatException($"Statbank CSV row has fewer columns than the header declares: '{line}'.");
             }
 
-            // BRANCHE07;TAL;TID;INDHOLD
-            values[columns[1]] = columns[3];
+            if (!string.Equals(columns[branchColumn], expectedBranch, StringComparison.Ordinal))
+            {
+                throw new FormatException(
+                    $"Statbank CSV row reports BRANCHE07 '{columns[branchColumn]}', expected '{expectedBranch}'.");
+            }
+
+            if (!string.Equals(columns[periodColumn], expectedPeriod, StringComparison.Ordinal))
+            {
+                throw new FormatException(
+                    $"Statbank CSV row reports TID '{columns[periodColumn]}', expected '{expectedPeriod}'.");
+            }
+
+            var measure = columns[measureColumn];
+            if (!values.TryAdd(measure, columns[contentColumn]))
+            {
+                throw new FormatException($"Statbank CSV response has more than one row for TAL '{measure}'.");
+            }
+        }
+
+        foreach (var measure in RequiredMeasures)
+        {
+            if (!values.ContainsKey(measure))
+            {
+                throw new FormatException($"Statbank CSV response is missing a row for TAL '{measure}'.");
+            }
         }
 
         return values;
     }
 
-    // Statbank writes ".." for a suppressed/missing value -- distinct from an actual zero, so
-    // it maps to null rather than 0 (plan section 4.2).
-    private static long? ParseNullableLong(string? raw) =>
-        string.IsNullOrEmpty(raw) || raw == ".."
+    // Statbank writes ".." for a suppressed/missing value -- distinct from an actual zero, so it
+    // maps to null rather than 0 (plan section 4.2). Any other value must parse; an empty cell is
+    // a malformed response, not a suppressed one, so it falls through to Parse and throws.
+    private static long? ParseNullableLong(string raw) =>
+        raw == ".."
             ? null
             : long.Parse(raw, NumberStyles.Integer, CultureInfo.InvariantCulture);
 
-    private static decimal? ParseNullableDecimal(string? raw) =>
-        string.IsNullOrEmpty(raw) || raw == ".."
+    // AllowThousands is deliberately excluded: with it, InvariantCulture reads a decimal comma
+    // (e.g. "1234,5") as a thousands separator and silently parses it as 12345 -- a factor-10
+    // error presented as fact, worse than a rejected value. Without it, the same input throws
+    // FormatException and surfaces as a controlled Unexpected/502 instead.
+    private static decimal? ParseNullableDecimal(string raw) =>
+        raw == ".."
             ? null
-            : decimal.Parse(raw, NumberStyles.Number, CultureInfo.InvariantCulture);
+            : decimal.Parse(raw, NumberStyles.AllowDecimalPoint | NumberStyles.AllowLeadingSign, CultureInfo.InvariantCulture);
 }
