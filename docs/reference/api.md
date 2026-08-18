@@ -8,7 +8,7 @@ Swagger UI at `/swagger` is the authoritative, always-current contract; this pag
 | Method | Path | Purpose |
 | --- | --- | --- |
 | `GET` | `/api/v1/companies/{cvrNumber}` | Company lookup by CVR number, enriched with industry statistics. Optional `?year=` |
-| `GET` | `/api/v1/companies?name=` | Search by company name, each result enriched |
+| `GET` | `/api/v1/companies?name=` | Search by company name, each result enriched. A name with no matches returns `200` with `[]`, not an error. Results are re-ranked locally (exact match, then prefix match, then the rest) and exclude bankrupt companies |
 | `GET` | `/api/v1/metadata/years` | Years with available industry statistics — backs the frontend's year dropdown |
 | `GET` | `/health/live` | Liveness — process is up |
 | `GET` | `/health/ready` | Readiness — dependencies checked |

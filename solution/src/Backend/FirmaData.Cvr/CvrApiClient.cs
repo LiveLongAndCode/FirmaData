@@ -1,6 +1,8 @@
 using System.Globalization;
+using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 using FirmaData.Application;
 using FirmaData.Domain;
 using Polly.CircuitBreaker;
@@ -59,7 +61,8 @@ public sealed class CvrApiClient(HttpClient httpClient) : ICompanyDirectory
 
     public async Task<Result<IReadOnlyList<Company>>> SearchByNameAsync(string name, CancellationToken ct)
     {
-        var encodedName = Uri.EscapeDataString(name);
+        var upstreamQuery = NormalizeForUpstream(name);
+        var encodedName = Uri.EscapeDataString(upstreamQuery);
 
         HttpResponseMessage response;
         try
@@ -73,6 +76,14 @@ public sealed class CvrApiClient(HttpClient httpClient) : ICompanyDirectory
 
         using (response)
         {
+            // apicvr.dk's search is path-based, so a query with no matches reports 404 rather
+            // than 200 with an empty array -- a status-code-only mapping would otherwise present
+            // an ordinary "nothing found" as a 503 outage. Any other non-2xx is a real failure.
+            if (response.StatusCode == HttpStatusCode.NotFound)
+            {
+                return Array.Empty<Company>();
+            }
+
             if (!response.IsSuccessStatusCode)
             {
                 return Result.Unavailable($"CVR API responded with status {(int)response.StatusCode}.");
@@ -95,20 +106,95 @@ public sealed class CvrApiClient(HttpClient httpClient) : ICompanyDirectory
 
             // A row that fails to map (e.g. an unparseable industry code) is dropped rather than
             // failing the whole search -- the anti-corruption layer stays defensive per-row
-            // instead of letting one bad record take down an otherwise-useful result set.
+            // instead of letting one bad record take down an otherwise-useful result set. A
+            // bankrupt company is dropped too (only "NORMAL" is confirmed live, so Unknown is
+            // kept -- it covers unconfirmed statuses, not confirmed-inactive ones).
             var companies = new List<Company>(dtos.Count);
             foreach (var dto in dtos)
             {
                 var mapped = MapToCompany(dto);
-                if (mapped.IsSuccess)
+                if (mapped.IsSuccess && mapped.Value.Status != CompanyStatus.Bankrupt)
                 {
                     companies.Add(mapped.Value);
                 }
             }
 
-            return companies;
+            // Upstream ranking buries an exact match (e.g. "NOVO NORDISK A/S") under loosely
+            // related results (fan clubs, staff associations) that merely contain the query
+            // somewhere. Re-rank locally instead: exact match, then prefix match, then the rest,
+            // all compared after the same normalization applied to the query itself. OrderBy is
+            // a stable sort, so upstream's own ordering survives within each rank group.
+            return companies.OrderBy(company => RelevanceRank(company.Name, upstreamQuery)).ToList();
         }
     }
+
+    private static int RelevanceRank(string companyName, string normalizedQuery)
+    {
+        var normalizedName = NormalizeForUpstream(companyName);
+        if (string.Equals(normalizedName, normalizedQuery, StringComparison.OrdinalIgnoreCase))
+        {
+            return 0;
+        }
+
+        return normalizedName.StartsWith(normalizedQuery, StringComparison.OrdinalIgnoreCase) ? 1 : 2;
+    }
+
+    // apicvr.dk's search endpoint is path-based: an un-encoded "/" 404s, and a full legal name
+    // like "LB Forsikring A/S" contains one via its own company-form suffix. Stripping a
+    // trailing suffix (never a leading one -- a name that merely starts with "Aps" must not be
+    // touched) covers the common case; any other "/" that's actually part of the name is
+    // replaced with a space rather than left for the path encoder to turn into "%2F".
+    private static string NormalizeForUpstream(string name)
+    {
+        // The "A/S" in "LB Forsikring A/S" will cause trouble in the URL - Remove it
+        var normalized = CollapseWhitespace(name);
+        normalized = StripTrailingCompanyForm(normalized);
+        return CollapseWhitespace(normalized.Replace('/', ' '));
+    }
+
+    private static readonly string[] CompanyFormSuffixes =
+    [
+        "A/S", "ApS", "I/S", "K/S", "P/S", "IVS", "SMBA", "S.M.B.A.", "AMBA", "A.M.B.A.", "FMBA", "F.M.B.A.", "G/S",
+    ];
+
+    private static string StripTrailingCompanyForm(string name)
+    {
+        foreach (var suffix in CompanyFormSuffixes)
+        {
+            if (TryStripSuffix(name, suffix, out var stripped))
+            {
+                return stripped;
+            }
+
+            // The suffix's own trailing period (if it doesn't already end in one) may also be
+            // written out, e.g. "... A/S." -- try that form too.
+            if (!suffix.EndsWith('.') && TryStripSuffix(name, suffix + ".", out stripped))
+            {
+                return stripped;
+            }
+        }
+
+        return name;
+    }
+
+    // The suffix must be its own trailing token -- separated from the rest of the name by
+    // whitespace or a comma -- not just a substring match against the tail, so a name that
+    // merely *starts* with e.g. "Aps" is never touched.
+    private static bool TryStripSuffix(string name, string candidate, out string stripped)
+    {
+        if (name.Length > candidate.Length &&
+            name.EndsWith(candidate, StringComparison.OrdinalIgnoreCase) &&
+            name[^(candidate.Length + 1)] is ' ' or ',')
+        {
+            stripped = name[..^candidate.Length].TrimEnd(' ', ',');
+            return true;
+        }
+
+        stripped = name;
+        return false;
+    }
+
+    private static string CollapseWhitespace(string value) => Regex.Replace(value, @"\s+", " ").Trim();
 
     private static Result<Company> MapToCompany(CvrCompanyResponse dto)
     {

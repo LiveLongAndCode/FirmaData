@@ -151,6 +151,24 @@ public class CompaniesEndpointTests(ApiFactory factory) : IClassFixture<ApiFacto
     }
 
     [Fact]
+    public async Task SearchByName_WithNoUpstreamMatches_Returns200WithEmptyArray()
+    {
+        // apicvr.dk reports "no matches" as an upstream 404 -- before this fase's fix, that was
+        // indistinguishable from a real outage and came back as 503.
+        factory.MockServer.ResetMappings();
+        factory.MockServer
+            .Given(Request.Create().WithPath("/api/v1/search/company/no%20such%20company").UsingGet())
+            .RespondWith(Response.Create().WithStatusCode(404));
+        using var client = factory.CreateClient();
+
+        using var response = await client.GetAsync("/api/v1/companies?name=no+such+company");
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var body = await response.Content.ReadFromJsonAsync<List<EnrichedCompanyResponse>>();
+        body.Should().BeEmpty();
+    }
+
+    [Fact]
     public async Task SearchByName_WithoutNameQuery_Returns400()
     {
         factory.MockServer.ResetMappings();
