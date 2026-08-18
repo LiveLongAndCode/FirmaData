@@ -10,11 +10,13 @@ internal static class EnrichedCompanyMapping
     private const string CvrSourceName = "apicvr.dk";
     private const string StatbankSourceName = "api.statbank.dk/ERHV1";
 
-    public static EnrichedCompanyResponse ToResponse(this EnrichedCompany enriched) => new(
+    // Takes TimeProvider as a parameter from the controller rather than making this class
+    // instance-based (plan fase 7, F9c) -- ToDto below stays a plain static mapping.
+    public static EnrichedCompanyResponse ToResponse(this EnrichedCompany enriched, TimeProvider timeProvider) => new(
         enriched.Company.ToDto(),
         enriched.Statistics?.ToDto(),
         enriched.StatisticsStatus.ToString(),
-        DateTimeOffset.UtcNow,
+        timeProvider.GetUtcNow(),
         new SourcesDto(CvrSourceName, StatbankSourceName));
 
     private static CompanyDto ToDto(this Company company) => new(

@@ -1,6 +1,8 @@
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Time.Testing;
 using WireMock.Server;
 
 namespace FirmaData.Api.IntegrationTests;
@@ -13,6 +15,10 @@ public sealed class ApiFactory : WebApplicationFactory<Program>
     // Named MockServer, not Server, to avoid hiding WebApplicationFactory<Program>.Server (the
     // in-memory TestServer).
     public WireMockServer MockServer { get; } = WireMockServer.Start();
+
+    // Overrides Program.cs's TimeProvider.System registration (plan fase 7, F9c) so tests can
+    // assert a deterministic RetrievedAt instead of a moving DateTimeOffset.UtcNow.
+    public FakeTimeProvider TimeProvider { get; } = new(DateTimeOffset.Parse("2026-08-18T09:12:00Z"));
 
     public ApiFactory()
     {
@@ -41,6 +47,16 @@ public sealed class ApiFactory : WebApplicationFactory<Program>
                 ["Statbank:BaseUrl"] = MockServer.Url,
             });
         });
+
+        // Keyed, not a plain AddSingleton<TimeProvider> override -- Microsoft.Extensions.Http.
+        // Resilience resolves an unkeyed TimeProvider from this same container to drive Polly's
+        // own retry/timeout delays, and overriding that with a frozen FakeTimeProvider stalls
+        // every scheduled retry indefinitely (see AppTimeProvider and Program.cs). Only the app's
+        // own keyed registration is replaced here.
+        // <TimeProvider> is explicit: without it, TService infers as FakeTimeProvider (the
+        // property's static type), registering a keyed service nobody asks for and leaving
+        // Program.cs's original TimeProvider-keyed registration as the only match.
+        builder.ConfigureServices(services => services.AddKeyedSingleton<TimeProvider>(AppTimeProvider.ServiceKey, TimeProvider));
     }
 
     protected override void Dispose(bool disposing)

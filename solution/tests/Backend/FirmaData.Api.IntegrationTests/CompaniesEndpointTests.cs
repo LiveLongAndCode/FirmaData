@@ -62,6 +62,9 @@ public class CompaniesEndpointTests(ApiFactory factory) : IClassFixture<ApiFacto
         body!.Company.Name.Should().Be("LB FORSIKRING A/S");
         body.IndustryStatistics!.Workplaces.Should().Be(166);
         body.StatisticsStatus.Should().Be("Ok");
+        // Deterministic via ApiFactory's FakeTimeProvider (plan fase 7, F9c), not a moving
+        // DateTimeOffset.UtcNow.
+        body.RetrievedAt.Should().Be(factory.TimeProvider.GetUtcNow());
     }
 
     [Fact]
@@ -96,19 +99,25 @@ public class CompaniesEndpointTests(ApiFactory factory) : IClassFixture<ApiFacto
         // The CVR API's own response fails the anti-corruption mapping (industrycode isn't a
         // valid 6-digit DB07 code) -- a broken upstream contract, not a client input problem, so
         // it must surface as 502 rather than 500.
+        //
+        // A different CVR number than the "known CVR" tests (30000005 -- checksum-valid, not a
+        // real registered company): CachingCompanyDirectory (plan fase 7, F9b) caches a
+        // successful GetByCvrAsync result for 10 minutes, shared across the whole class fixture.
+        // Reusing 16500836 here risks this test silently reading another test's already-cached
+        // good company data instead of ever calling this test's own malformed-response mock.
         factory.MockServer.ResetMappings();
         factory.MockServer
-            .Given(Request.Create().WithPath("/api/v1/16500836").UsingGet())
+            .Given(Request.Create().WithPath("/api/v1/30000005").UsingGet())
             .RespondWith(Response.Create().WithStatusCode(200).WithBody("""
                 {
-                  "vat": 16500836,
+                  "vat": 30000005,
                   "name": "LB FORSIKRING A/S",
                   "industrycode": "NOT-A-CODE"
                 }
                 """).WithHeader("Content-Type", "application/json"));
         using var client = factory.CreateClient();
 
-        using var response = await client.GetAsync("/api/v1/companies/16500836");
+        using var response = await client.GetAsync("/api/v1/companies/30000005");
 
         response.StatusCode.Should().Be(HttpStatusCode.BadGateway);
         var body = await response.Content.ReadAsStringAsync();
@@ -118,13 +127,17 @@ public class CompaniesEndpointTests(ApiFactory factory) : IClassFixture<ApiFacto
     [Fact]
     public async Task GetByCvr_WithUnknownCvr_Returns404()
     {
+        // A different CVR number than the other tests in this class -- CachingCompanyDirectory
+        // (plan fase 7, F9b) now caches a NotFound result for 10 minutes, shared across the whole
+        // class fixture, so reusing 16500836 here would poison the "known CVR" tests with a
+        // stale 404 depending on execution order.
         factory.MockServer.ResetMappings();
         factory.MockServer
-            .Given(Request.Create().WithPath("/api/v1/16500836").UsingGet())
+            .Given(Request.Create().WithPath("/api/v1/25313763").UsingGet())
             .RespondWith(Response.Create().WithStatusCode(200).WithBody("""{"error":"NOT_FOUND"}""").WithHeader("Content-Type", "application/json"));
         using var client = factory.CreateClient();
 
-        using var response = await client.GetAsync("/api/v1/companies/16500836");
+        using var response = await client.GetAsync("/api/v1/companies/25313763");
 
         response.StatusCode.Should().Be(HttpStatusCode.NotFound);
     }
