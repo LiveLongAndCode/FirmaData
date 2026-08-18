@@ -170,7 +170,11 @@ def http_get(url, timeout):
             return resp.status, dict(resp.headers), resp.read(), time.monotonic() - start
     except urllib.error.HTTPError as ex:
         return ex.code, dict(ex.headers or {}), ex.read(), time.monotonic() - start
-    except urllib.error.URLError as ex:
+    except (urllib.error.URLError, ConnectionError) as ex:
+        # ConnectionError (e.g. http.client.RemoteDisconnected) separately from URLError:
+        # urllib only wraps OSErrors raised while sending the request, not ones raised by
+        # h.getresponse() while reading the response, so a reset while a container is still
+        # coming up would otherwise crash the caller instead of being retried as "not ready yet".
         return None, {}, str(ex).encode(), time.monotonic() - start
 
 
