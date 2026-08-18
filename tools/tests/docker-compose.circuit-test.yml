@@ -1,0 +1,21 @@
+# Compose overlay used only by tools/run_test-circuit-breaker.bat.
+#
+# Points firmadata-api's CVR/Statbank clients at test-circuit-breaker.py's local stub instead
+# of the real apicvr.dk / api.statbank.dk, so the circuit breaker can be tripped on demand and
+# watched in Prometheus/Grafana without sending any traffic to the real upstreams.
+#
+# host.docker.internal (not localhost) because the stub runs on the host, outside the
+# container's network namespace; extra_hosts maps it to the host gateway, which Docker Desktop
+# provides automatically but Linux engines do not.
+#
+# Applied as an overlay, never on its own:
+#   docker compose -f docker-compose.yml -f tools/tests/docker-compose.circuit-test.yml up -d firmadata-api
+# and undone by recreating the service from docker-compose.yml alone:
+#   docker compose -f docker-compose.yml up -d --force-recreate firmadata-api
+services:
+  firmadata-api:
+    environment:
+      Cvr__BaseUrl: http://host.docker.internal:8199/
+      Statbank__BaseUrl: http://host.docker.internal:8199/
+    extra_hosts:
+      - "host.docker.internal:host-gateway"

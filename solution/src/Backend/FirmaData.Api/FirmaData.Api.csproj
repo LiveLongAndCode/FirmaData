@@ -1,0 +1,38 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <!-- Central package management is off for this project only. With it on, restoring this
+         project's dependency graph (which pulls in FirmaData.Cvr/FirmaData.Statbank's own
+         package references) fails with NU1103 on OpenTelemetry.Exporter.Prometheus.AspNetCore
+         specifically: no stable release of that package exists yet (it's been beta-only for
+         the whole OTel .NET ecosystem's lifetime), and neither a bracketed exact-version pin nor
+         VersionOverride (with CentralPackageVersionOverrideEnabled) gets central package
+         management to accept a prerelease-only version here. The same package resolves cleanly
+         both in an isolated non-CPM project and, as here, with CPM turned off for this project.
+         Versions below are kept in sync with Directory.Packages.props by hand for every package
+         this project shares with the rest of the solution. -->
+    <ManagePackageVersionsCentrally>false</ManagePackageVersionsCentrally>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Swashbuckle.AspNetCore" Version="6.6.2" />
+    <PackageReference Include="OpenTelemetry.Extensions.Hosting" Version="1.17.0" />
+    <PackageReference Include="OpenTelemetry.Instrumentation.AspNetCore" Version="1.17.0" />
+    <PackageReference Include="OpenTelemetry.Instrumentation.Http" Version="1.17.0" />
+    <!-- Prerelease: see the ManagePackageVersionsCentrally note above. -->
+    <PackageReference Include="OpenTelemetry.Exporter.Prometheus.AspNetCore" Version="1.17.0-beta.1" />
+    <PackageReference Include="Serilog.AspNetCore" Version="8.0.3" />
+    <PackageReference Include="Serilog.Sinks.Console" Version="6.1.1" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\FirmaData.Application\FirmaData.Application.csproj" />
+    <ProjectReference Include="..\FirmaData.Cvr\FirmaData.Cvr.csproj" />
+    <ProjectReference Include="..\FirmaData.Statbank\FirmaData.Statbank.csproj" />
+    <ProjectReference Include="..\FirmaData.Contracts\FirmaData.Contracts.csproj" />
+  </ItemGroup>
+
+</Project>

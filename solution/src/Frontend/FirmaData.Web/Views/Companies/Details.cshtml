@@ -1,0 +1,60 @@
+@model CompanyDetailViewModel
+@{
+    ViewData["Title"] = Model.Name;
+}
+
+<a asp-controller="Home" asp-action="Index" class="back-link">&larr; Ny søgning</a>
+
+<section class="company-header">
+    <h1>@Model.Name</h1>
+    <p class="company-header__cvr">CVR-nummer @Model.CvrNumber</p>
+</section>
+
+<div class="card-grid">
+    <article class="card" aria-labelledby="stamdata-heading">
+        <h2 id="stamdata-heading">Stamdata</h2>
+        <dl class="fact-list">
+            <div class="fact-list__row">
+                <dt>Adresse</dt>
+                <dd>@Model.Street, @Model.PostalCode @Model.City</dd>
+            </div>
+            <div class="fact-list__row">
+                <dt>Branchekode</dt>
+                <dd>@Model.IndustryCode &ndash; @Model.IndustryDescription</dd>
+            </div>
+            <div class="fact-list__row">
+                <dt>Antal ansatte</dt>
+                <dd>@Model.EmployeeCountDisplay</dd>
+            </div>
+        </dl>
+    </article>
+
+    <article class="card" aria-labelledby="statistik-heading">
+        <h2 id="statistik-heading">Branchestatistik for @Model.Year</h2>
+        @if (Model.StatisticsAvailable)
+        {
+            <dl class="fact-list">
+                <div class="fact-list__row">
+                    <dt>Antal arbejdssteder</dt>
+                    <dd>@Model.WorkplacesDisplay</dd>
+                </div>
+                <div class="fact-list__row">
+                    <dt>Antal ansatte i branchen</dt>
+                    <dd>@Model.EmployeesDisplay</dd>
+                </div>
+                <div class="fact-list__row">
+                    <dt>Fuldtidsbeskæftigede</dt>
+                    <dd>@Model.FullTimeEquivalentsDisplay</dd>
+                </div>
+                <div class="fact-list__row">
+                    <dt>Lønsum</dt>
+                    <dd>@Model.WageSumDisplay</dd>
+                </div>
+            </dl>
+        }
+        else
+        {
+            <p class="notice">@Model.StatisticsNotice</p>
+        }
+    </article>
+</div>

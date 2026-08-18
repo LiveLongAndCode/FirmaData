@@ -1,0 +1,95 @@
+# Portability demo: proves the same solution builds and tests cleanly on a second CI vendor,
+# not just GitHub Actions (see README's "Platform-agnosticism" section). Mirrors .github/
+# workflows/ci.yml's build-test job using Azure Pipelines' own native tasks, plus a Docker
+# build (no push -- no registry credentials needed) for the same two Dockerfiles.
+#
+# live-smoke.yml is deliberately not mirrored here; out of scope for this demo.
+
+trigger:
+  branches:
+    include: [main]
+pr:
+  branches:
+    include: [main]
+
+# Self-hosted, not vmImage: ubuntu-latest -- new Azure DevOps orgs no longer get an automatic
+# free grant of Microsoft-hosted parallel jobs (the "No hosted parallelism has been purchased or
+# granted" error), and the request-for-grant process has known multi-week response delays as of
+# 2026. A self-hosted agent gets 1 free parallel job automatically, no approval needed. Setup
+# guide: docs/azure-pipelines-self-hosted-agent.md. Switch back to `vmImage: ubuntu-latest` if the
+# hosted grant is ever approved.
+pool: Default
+
+jobs:
+  - job: BuildAndTest
+    displayName: Build & test
+    variables:
+      # Not predefined by Azure Pipelines -- declaring it here both gives Cache@2 a real path to
+      # cache and exports it as an env var to the Restore step below, which is what makes
+      # `dotnet restore` actually write packages there instead of the default ~/.nuget/packages
+      # (the standard Microsoft pattern for caching NuGet in Azure Pipelines).
+      NUGET_PACKAGES: $(Pipeline.Workspace)/.nuget/packages
+    steps:
+      - task: UseDotNet@2
+        displayName: Set up .NET SDK
+        inputs:
+          useGlobalJson: true
+
+      - task: Cache@2
+        displayName: Cache NuGet packages
+        inputs:
+          key: 'nuget | "$(Agent.OS)" | solution/**/*.csproj, solution/Directory.Packages.props'
+          restoreKeys: 'nuget | "$(Agent.OS)"'
+          path: $(NUGET_PACKAGES)
+
+      - script: dotnet restore FirmaData.sln
+        displayName: Restore
+        workingDirectory: solution
+
+      # TreatWarningsAsErrors + EnforceCodeStyleInBuild (Directory.Build.props) fail the build on
+      # analyzer warnings the same way regardless of CI vendor -- no extra flag needed here either.
+      - script: dotnet build FirmaData.sln --configuration Release --no-restore
+        displayName: Build
+        workingDirectory: solution
+
+      - script: >
+          dotnet test FirmaData.sln
+          --configuration Release
+          --no-build
+          --filter "Category!=Live"
+          --logger "trx;LogFileName=test-results.trx"
+          --collect:"XPlat Code Coverage"
+          --results-directory $(Agent.TempDirectory)/TestResults
+        displayName: Test
+        workingDirectory: solution
+
+      - task: PublishTestResults@2
+        displayName: Publish test results
+        condition: succeededOrFailed()
+        inputs:
+          testResultsFormat: VSTest
+          testResultsFiles: "**/test-results.trx"
+          searchFolder: $(Agent.TempDirectory)/TestResults
+
+      - task: PublishCodeCoverageResults@2
+        displayName: Publish coverage
+        condition: succeededOrFailed()
+        inputs:
+          summaryFileLocation: "$(Agent.TempDirectory)/TestResults/**/coverage.cobertura.xml"
+
+  - job: DockerBuild
+    displayName: Docker build
+    dependsOn: BuildAndTest
+    strategy:
+      matrix:
+        api:
+          service: api
+          dockerfile: solution/src/Backend/FirmaData.Api/Dockerfile
+        web:
+          service: web
+          dockerfile: solution/src/Frontend/FirmaData.Web/Dockerfile
+    steps:
+      # No push, no registry login -- this job only proves the Dockerfile still builds cleanly
+      # from a different CI vendor's runner. ci.yml's docker job is what actually pushes to GHCR.
+      - script: docker build -f $(dockerfile) ./solution
+        displayName: docker build
