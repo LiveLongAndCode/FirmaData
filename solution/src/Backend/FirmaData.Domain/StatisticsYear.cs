@@ -10,14 +10,20 @@ public readonly record struct StatisticsYear
     // time; this constant only rejects nonsense input (e.g. year 0) before it reaches the network.
     public const int EarliestYear = 2008;
 
-    public static Result<StatisticsYear> TryCreate(int year)
+    // currentYear defaults to the real clock. A DI-based TimeProvider isn't threaded in here --
+    // this is a readonly record struct in Domain with no DI (plan fase 7, F9c) -- so a caller
+    // that needs deterministic "now" (tests, or a future TimeProvider-aware caller) passes it
+    // explicitly instead.
+    public static Result<StatisticsYear> TryCreate(int year, int? currentYear = null)
     {
+        var resolvedCurrentYear = currentYear ?? DateTime.UtcNow.Year;
+
         if (year < EarliestYear)
         {
             return Result.Validation($"Year must be {EarliestYear} or later.");
         }
 
-        if (year > DateTime.UtcNow.Year)
+        if (year > resolvedCurrentYear)
         {
             return Result.Validation("Year cannot be in the future.");
         }

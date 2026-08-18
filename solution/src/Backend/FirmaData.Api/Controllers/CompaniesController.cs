@@ -4,6 +4,7 @@ using FirmaData.Application;
 using FirmaData.Contracts;
 using FirmaData.Domain;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 
 namespace FirmaData.Api.Controllers;
@@ -12,7 +13,11 @@ namespace FirmaData.Api.Controllers;
 // response (plan section 5.1).
 [ApiController]
 [Route("api/v1/companies")]
-public sealed class CompaniesController(ICompanyEnrichmentService enrichmentService, IOptions<SearchOptions> searchOptions) : ControllerBase
+public sealed class CompaniesController(
+    ICompanyEnrichmentService enrichmentService,
+    IOptions<SearchOptions> searchOptions,
+    [FromKeyedServices(AppTimeProvider.ServiceKey)] TimeProvider timeProvider)
+    : ControllerBase
 {
     [HttpGet("{cvrNumber}")]
     [ProducesResponseType<EnrichedCompanyResponse>(StatusCodes.Status200OK)]
@@ -41,7 +46,7 @@ public sealed class CompaniesController(ICompanyEnrichmentService enrichmentServ
 
         ApplyDegradedSourceHeader(enriched.Value.StatisticsStatus);
 
-        return Ok(enriched.Value.ToResponse());
+        return Ok(enriched.Value.ToResponse(timeProvider));
     }
 
     [HttpGet]
@@ -88,7 +93,7 @@ public sealed class CompaniesController(ICompanyEnrichmentService enrichmentServ
             ApplyDegradedSourceHeader(EnrichmentStatus.SourceUnavailable);
         }
 
-        return Ok(enriched.Value.Select(company => company.ToResponse()));
+        return Ok(enriched.Value.Select(company => company.ToResponse(timeProvider)));
     }
 
     private static bool TryParseYear(int? year, out StatisticsYear? parsedYear, out ResultError error)

@@ -38,3 +38,12 @@ Found by probing both APIs directly before writing the adapters:
   versions store scraped metric names with dots instead of underscores
   (`firmadata.dependency.requests` rather than `firmadata_dependency_requests`), which silently
   breaks every PromQL query in the provisioned dashboard.
+* **The app's `TimeProvider` is a keyed DI service (`AppTimeProvider.ServiceKey`), not the plain
+  unkeyed `TimeProvider`.** `Microsoft.Extensions.Http.Resilience`'s pipelines resolve an unkeyed
+  `TimeProvider` from the same container to drive Polly's own retry/timeout delays. Registering a
+  frozen `FakeTimeProvider` there (as `ApiFactory` needs to, for a deterministic `RetrievedAt` in
+  tests) silently starves every scheduled retry: Polly logs the retry decision, then waits forever
+  against a clock that never advances, until some unrelated outer timeout (the test client's own
+  default 100s `HttpClient.Timeout`) finally aborts the connection — reproduced and confirmed while
+  building F9c (plan fase 7). Keying the app's own registration keeps it overridable in tests
+  without touching Polly's.
