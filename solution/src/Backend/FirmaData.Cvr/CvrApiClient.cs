@@ -154,7 +154,17 @@ public sealed class CvrApiClient(HttpClient httpClient) : ICompanyDirectory
 
     private static readonly string[] CompanyFormSuffixes =
     [
-        "A/S", "ApS", "I/S", "K/S", "P/S", "IVS", "SMBA", "S.M.B.A.", "AMBA", "A.M.B.A.", "FMBA", "F.M.B.A.", "G/S",
+        "A.M.B.A.", "AMBA",
+        "A/S",
+        "ApS",
+        "F.M.B.A.", "FMBA",
+        "G/S",
+        "I/S",
+        "IVS",
+        "K/S",
+        "P/S",
+        "S.M.B.A.", "SMBA",
+        "V.M.B.A", "VMBA"
     ];
 
     private static string StripTrailingCompanyForm(string name)

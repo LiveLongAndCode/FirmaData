@@ -5,6 +5,7 @@ using FirmaData.Application;
 using FirmaData.Cvr;
 using FirmaData.Statbank;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
+using Microsoft.Extensions.Options;
 using OpenTelemetry.Metrics;
 using Serilog;
 
@@ -43,7 +44,27 @@ public class Program
         builder.Services.AddStatbankClient(builder.Configuration)
             .AddDependencyMetrics("statbank")
             .AddStatbankResiliencePipeline();
-        builder.Services.AddScoped<ICompanyEnrichmentService, CompanyEnrichmentService>();
+
+        builder.Services
+            .AddOptions<SearchOptions>()
+            .Bind(builder.Configuration.GetSection(SearchOptions.SectionName))
+            .ValidateDataAnnotations()
+            .ValidateOnStart();
+
+        // Factory registration, not AddScoped<ICompanyEnrichmentService, CompanyEnrichmentService>
+        // directly: FirmaData.Application must not take a package reference on Options, so this
+        // is where SearchOptions.MaxConcurrentStatisticsCalls is read and handed down as a plain
+        // int. Read from IOptions<SearchOptions> here (not IOptionsSnapshot/Monitor) rather than
+        // capturing a value at registration time, so the composition root -- not the constructor
+        // parameter's default -- is the single place that owns the actual value.
+        builder.Services.AddScoped<ICompanyEnrichmentService>(provider =>
+        {
+            var options = provider.GetRequiredService<IOptions<SearchOptions>>().Value;
+            return new CompanyEnrichmentService(
+                provider.GetRequiredService<ICompanyDirectory>(),
+                provider.GetRequiredService<IIndustryStatisticsProvider>(),
+                options.MaxConcurrentStatisticsCalls);
+        });
 
         builder.Services.AddProblemDetails();
         builder.Services.AddExceptionHandler<GlobalExceptionHandler>();

@@ -7,7 +7,13 @@ namespace FirmaData.Application;
 // call comes from the CVR lookup itself, so a single-CVR enrichment is necessarily sequential --
 // the calls cannot be parallelised. Name search resolves statistics for the distinct set of
 // industry codes concurrently instead, since several results often share one industry.
-public sealed class CompanyEnrichmentService(ICompanyDirectory directory, IIndustryStatisticsProvider statistics)
+//
+// maxConcurrentStatisticsCalls is a plain primitive, not an Options type: this project must not
+// take a dependency on the Options package or either adapter project (ArchitectureTests), so the
+// composition root (FirmaData.Api's Program.cs) reads the actual limit from SearchOptions and
+// passes just the int through a factory registration.
+public sealed class CompanyEnrichmentService(
+    ICompanyDirectory directory, IIndustryStatisticsProvider statistics, int maxConcurrentStatisticsCalls = 4)
     : ICompanyEnrichmentService
 {
     public async Task<Result<EnrichedCompany>> EnrichByCvrAsync(CvrNumber cvr, StatisticsYear? year, CancellationToken ct)
@@ -34,7 +40,7 @@ public sealed class CompanyEnrichmentService(ICompanyDirectory directory, IIndus
         }
     }
 
-    public async Task<Result<IReadOnlyList<EnrichedCompany>>> SearchAndEnrichAsync(string name, StatisticsYear? year, CancellationToken ct)
+    public async Task<Result<IReadOnlyList<EnrichedCompany>>> SearchAndEnrichAsync(string name, StatisticsYear? year, int limit, CancellationToken ct)
     {
         var stopwatch = Stopwatch.StartNew();
         try
@@ -50,15 +56,33 @@ public sealed class CompanyEnrichmentService(ICompanyDirectory directory, IIndus
                 return Array.Empty<EnrichedCompany>();
             }
 
+            // Cap before enrichment, not after: the directory has already ranked its results by
+            // relevance, so anything beyond `limit` is both the least relevant and never worth
+            // the Statbank call a wide search would otherwise fan out into.
+            var limited = companies.Value.Take(limit).ToList();
+
             var resolvedYear = await ResolveYearAsync(year, ct);
 
-            // Distinct so ten results sharing three industries cost three Statbank calls, not ten.
-            var distinctCodes = companies.Value.Select(company => company.IndustryCode).Distinct().ToList();
+            // Distinct so ten results sharing three industries cost three Statbank calls, not
+            // ten. The semaphore bounds how many of those calls run at once, so a wide search
+            // against a shared public service can't fan out unbounded.
+            var distinctCodes = limited.Select(company => company.IndustryCode).Distinct().ToList();
+            using var throttle = new SemaphoreSlim(maxConcurrentStatisticsCalls);
             var lookups = await Task.WhenAll(distinctCodes.Select(async code =>
-                (Code: code, Stats: await statistics.GetAsync(code, resolvedYear, ct))));
+            {
+                await throttle.WaitAsync(ct);
+                try
+                {
+                    return (Code: code, Stats: await statistics.GetAsync(code, resolvedYear, ct));
+                }
+                finally
+                {
+                    throttle.Release();
+                }
+            }));
             var statisticsByCode = lookups.ToDictionary(lookup => lookup.Code, lookup => lookup.Stats);
 
-            var enriched = companies.Value
+            var enriched = limited
                 .Select(company =>
                 {
                     var stats = statisticsByCode[company.IndustryCode];

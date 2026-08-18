@@ -16,3 +16,4 @@ decisions made after the initial build. Smaller, implementation-level decisions 
 | [0007](0007-net10-upgrade.md) | Upgrade from .NET 8 to .NET 10, OpenAPI generation moved off Swashbuckle |
 | [0008](0008-statbank-parsing-hardening.md) | Strict Statbank CSV validation, `Unexpected` mapped to 502 |
 | [0009](0009-name-search-normalization-and-reranking.md) | Normalize the name-search query, and re-rank results locally |
+| [0010](0010-search-fanout-and-input-limits.md) | Cap search fan-out before enrichment, and validate search input |
