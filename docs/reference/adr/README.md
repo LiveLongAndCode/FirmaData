@@ -15,3 +15,4 @@ decisions made after the initial build. Smaller, implementation-level decisions 
 | [0006](0006-danish-ui-english-codebase.md) | Danish UI language, English codebase and API contract |
 | [0007](0007-net10-upgrade.md) | Upgrade from .NET 8 to .NET 10, OpenAPI generation moved off Swashbuckle |
 | [0008](0008-statbank-parsing-hardening.md) | Strict Statbank CSV validation, `Unexpected` mapped to 502 |
+| [0009](0009-name-search-normalization-and-reranking.md) | Normalize the name-search query, and re-rank results locally |

@@ -179,4 +179,89 @@ public class CvrApiClientTests
 
         handler.LastRequest!.RequestUri!.AbsolutePath.Should().Be("/api/v1/search/company/lb%20forsikring");
     }
+
+    [Fact]
+    public async Task SearchByNameAsync_WithFullLegalNameContainingSlash_StripsTheSuffixBeforeTheUpstreamCall()
+    {
+        // "LB Forsikring A/S" is this project's own test fixture: encoded raw, the "/" in "A/S"
+        // becomes "%2F" in the path and apicvr.dk 404s. Stripping the trailing company-form
+        // suffix keeps the slash out of the path entirely.
+        var handler = StubHttpMessageHandler.Returning(HttpStatusCode.OK, "[]");
+        var sut = CreateClient(handler);
+
+        await sut.SearchByNameAsync("LB Forsikring A/S", CancellationToken.None);
+
+        handler.LastRequest!.RequestUri!.AbsolutePath.Should().Be("/api/v1/search/company/LB%20Forsikring");
+    }
+
+    [Fact]
+    public async Task SearchByNameAsync_DoesNotStripALeadingCompanyFormLookingToken()
+    {
+        var handler = StubHttpMessageHandler.Returning(HttpStatusCode.OK, "[]");
+        var sut = CreateClient(handler);
+
+        await sut.SearchByNameAsync("Aps Rådgivning", CancellationToken.None);
+
+        handler.LastRequest!.RequestUri!.AbsolutePath.Should().Be("/api/v1/search/company/Aps%20R%C3%A5dgivning");
+    }
+
+    [Fact]
+    public async Task SearchByNameAsync_With404Response_ReturnsEmptySuccess()
+    {
+        // A search with no matches is reported as an upstream 404, not 200 with []. Without this
+        // fase's fix, any non-2xx (404 included) became Unavailable -- presenting an ordinary
+        // empty result as a 503 outage.
+        var handler = StubHttpMessageHandler.Returning(HttpStatusCode.NotFound);
+        var sut = CreateClient(handler);
+
+        var result = await sut.SearchByNameAsync("no such company", CancellationToken.None);
+
+        result.IsSuccess.Should().BeTrue();
+        result.Value.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task SearchByNameAsync_RanksExactMatchBeforeLooselyRelatedResults()
+    {
+        var exactMatch = LbForsikringJson();
+        var looselyRelated = LbForsikringJson() // reuse the fixture's other fields
+            .Replace("\"LB FORSIKRING A/S\"", "\"Fanklub for LB Forsikring A/S\"");
+        // Upstream order deliberately buries the exact match second.
+        var handler = StubHttpMessageHandler.Returning(HttpStatusCode.OK, $"[{looselyRelated}, {exactMatch}]");
+        var sut = CreateClient(handler);
+
+        var result = await sut.SearchByNameAsync("LB Forsikring A/S", CancellationToken.None);
+
+        result.IsSuccess.Should().BeTrue();
+        result.Value.Should().HaveCount(2);
+        result.Value[0].Name.Should().Be("LB FORSIKRING A/S");
+        result.Value[1].Name.Should().Be("Fanklub for LB Forsikring A/S");
+    }
+
+    [Fact]
+    public async Task SearchByNameAsync_FiltersOutBankruptCompanies()
+    {
+        var handler = StubHttpMessageHandler.Returning(HttpStatusCode.OK, $"[{LbForsikringJson(bankrupt: true)}]");
+        var sut = CreateClient(handler);
+
+        var result = await sut.SearchByNameAsync("lb forsikring", CancellationToken.None);
+
+        result.IsSuccess.Should().BeTrue();
+        result.Value.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task SearchByNameAsync_KeepsCompaniesWithUnknownStatus()
+    {
+        // Unknown covers an unconfirmed status string, not a confirmed-inactive company -- only
+        // an explicit bankrupt flag is filtered.
+        var handler = StubHttpMessageHandler.Returning(
+            HttpStatusCode.OK, $"[{LbForsikringJson(status: "SOMETHING_UNSEEN")}]");
+        var sut = CreateClient(handler);
+
+        var result = await sut.SearchByNameAsync("lb forsikring", CancellationToken.None);
+
+        result.IsSuccess.Should().BeTrue();
+        result.Value.Should().ContainSingle(c => c.Status == CompanyStatus.Unknown);
+    }
 }
