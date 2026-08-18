@@ -24,8 +24,8 @@ public class CompanyViewModelMappingTests
 
         model.StatisticsAvailable.Should().BeTrue();
         model.StatisticsNotice.Should().BeNull();
-        model.WorkplacesDisplay.Should().Be("166");
-        model.EmployeesDisplay.Should().Be("15.206");
+        model.WorkplacesEndNovemberDisplay.Should().Be("166");
+        model.JobsEndNovemberDisplay.Should().Be("15.206");
         model.FullTimeEquivalentsDisplay.Should().Be("13.458");
         model.WageSumDisplay.Should().Be("10.380 mio. kr.");
         model.EmployeeCountDisplay.Should().Be("1.010");

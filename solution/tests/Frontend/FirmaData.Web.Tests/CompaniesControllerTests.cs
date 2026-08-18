@@ -43,7 +43,7 @@ public class CompaniesControllerTests
 
         var model = result.Should().BeOfType<ViewResult>().Subject.Model.Should().BeOfType<CompanyDetailViewModel>().Subject;
         model.Name.Should().Be("LB FORSIKRING A/S");
-        model.WorkplacesDisplay.Should().Be("166");
+        model.WorkplacesEndNovemberDisplay.Should().Be("166");
     }
 
     [Fact]

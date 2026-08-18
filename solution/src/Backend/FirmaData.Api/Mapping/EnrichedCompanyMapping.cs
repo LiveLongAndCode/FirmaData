@@ -30,8 +30,8 @@ internal static class EnrichedCompanyMapping
     private static IndustryStatisticsDto ToDto(this IndustryStatistics statistics) => new(
         statistics.IndustryCode.Value,
         statistics.Year.Value,
-        statistics.Workplaces,
-        statistics.Employees,
+        statistics.WorkplacesEndNovember,
+        statistics.JobsEndNovember,
         statistics.FullTimeEquivalents,
         statistics.WageSumMillionDkk);
 }

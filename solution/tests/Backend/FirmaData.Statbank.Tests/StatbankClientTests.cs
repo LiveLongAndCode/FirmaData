@@ -37,8 +37,8 @@ public class StatbankClientTests
         var stats = result.Value;
         stats.IndustryCode.Should().Be(Erhv651200);
         stats.Year.Should().Be(Year2022);
-        stats.Workplaces.Should().Be(166);
-        stats.Employees.Should().Be(15206);
+        stats.WorkplacesEndNovember.Should().Be(166);
+        stats.JobsEndNovember.Should().Be(15206);
         stats.FullTimeEquivalents.Should().Be(13458);
         stats.WageSumMillionDkk.Should().Be(10380);
     }
@@ -56,8 +56,8 @@ public class StatbankClientTests
         var result = await sut.GetAsync(Erhv651200, Year2022, CancellationToken.None);
 
         result.IsSuccess.Should().BeTrue();
-        result.Value.Workplaces.Should().Be(166);
-        result.Value.Employees.Should().Be(15206);
+        result.Value.WorkplacesEndNovember.Should().Be(166);
+        result.Value.JobsEndNovember.Should().Be(15206);
         result.Value.FullTimeEquivalents.Should().Be(13458);
         result.Value.WageSumMillionDkk.Should().Be(10380);
     }
@@ -72,7 +72,7 @@ public class StatbankClientTests
         var result = await sut.GetAsync(Erhv651200, Year2022, CancellationToken.None);
 
         result.IsSuccess.Should().BeTrue();
-        result.Value.Employees.Should().BeNull();
+        result.Value.JobsEndNovember.Should().BeNull();
     }
 
     [Fact]
@@ -322,7 +322,7 @@ public class StatbankClientTests
         var result = await sut.GetAsync(Erhv651200, Year2022, CancellationToken.None);
 
         result.IsSuccess.Should().BeTrue();
-        result.Value.Workplaces.Should().Be(166);
+        result.Value.WorkplacesEndNovember.Should().Be(166);
     }
 
     [Fact]
