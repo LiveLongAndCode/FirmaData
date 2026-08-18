@@ -19,6 +19,7 @@ public sealed class CompaniesController(ICompanyEnrichmentService enrichmentServ
     [ProducesResponseType<EnrichedCompanyResponse>(StatusCodes.Status200OK)]
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status400BadRequest)]
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status404NotFound)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status502BadGateway)]
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status503ServiceUnavailable)]
     public async Task<IActionResult> GetByCvr(string cvrNumber, [FromQuery] int? year, CancellationToken ct)
     {
@@ -47,6 +48,7 @@ public sealed class CompaniesController(ICompanyEnrichmentService enrichmentServ
     [HttpGet]
     [ProducesResponseType<IEnumerable<EnrichedCompanyResponse>>(StatusCodes.Status200OK)]
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status502BadGateway)]
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status503ServiceUnavailable)]
     public async Task<IActionResult> SearchByName([FromQuery] string? name, [FromQuery] int? year, CancellationToken ct)
     {

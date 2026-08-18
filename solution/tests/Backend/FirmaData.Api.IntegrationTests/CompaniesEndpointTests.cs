@@ -91,6 +91,31 @@ public class CompaniesEndpointTests(ApiFactory factory) : IClassFixture<ApiFacto
     }
 
     [Fact]
+    public async Task GetByCvr_WithInvalidIndustryCodeFromCvrApi_Returns502()
+    {
+        // The CVR API's own response fails the anti-corruption mapping (industrycode isn't a
+        // valid 6-digit DB07 code) -- a broken upstream contract, not a client input problem, so
+        // it must surface as 502 rather than 500.
+        factory.MockServer.ResetMappings();
+        factory.MockServer
+            .Given(Request.Create().WithPath("/api/v1/16500836").UsingGet())
+            .RespondWith(Response.Create().WithStatusCode(200).WithBody("""
+                {
+                  "vat": 16500836,
+                  "name": "LB FORSIKRING A/S",
+                  "industrycode": "NOT-A-CODE"
+                }
+                """).WithHeader("Content-Type", "application/json"));
+        using var client = factory.CreateClient();
+
+        using var response = await client.GetAsync("/api/v1/companies/16500836");
+
+        response.StatusCode.Should().Be(HttpStatusCode.BadGateway);
+        var body = await response.Content.ReadAsStringAsync();
+        body.Should().Contain("Unexpected");
+    }
+
+    [Fact]
     public async Task GetByCvr_WithUnknownCvr_Returns404()
     {
         factory.MockServer.ResetMappings();
