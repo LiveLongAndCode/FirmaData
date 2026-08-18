@@ -1,6 +1,6 @@
 # Architecture
 
-C# on .NET 8, Ports & Adapters (hexagonal). The [root README](../../README.md) has the request-flow
+C# on .NET 10, Ports & Adapters (hexagonal). The [root README](../../README.md) has the request-flow
 diagram; this document is the reasoning and the layout behind it.
 
 ## Dependency direction

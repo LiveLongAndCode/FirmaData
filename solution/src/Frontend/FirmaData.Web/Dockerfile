@@ -3,7 +3,7 @@
 # directory. Mirrors FirmaData.Api/Dockerfile's restore layer exactly (same FirmaData.Build.slnf,
 # same seven .csproj files), since restoring the filter always restores all of it -- only the
 # publish target below differs.
-FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
+FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
 WORKDIR /src
 
 COPY FirmaData.sln FirmaData.Build.slnf Directory.Build.props Directory.Packages.props .editorconfig ./
@@ -22,9 +22,9 @@ RUN dotnet publish src/Frontend/FirmaData.Web/FirmaData.Web.csproj \
     --no-restore \
     --output /app/publish
 
-# .NET 8's aspnet image already runs as the non-root "app" user and listens on 8080 by default
+# .NET 10's aspnet image already runs as the non-root "app" user and listens on 8080 by default
 # (ASPNETCORE_HTTP_PORTS, baked into the image).
-FROM mcr.microsoft.com/dotnet/aspnet:8.0 AS final
+FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS final
 WORKDIR /app
 COPY --from=build /app/publish .
 USER app

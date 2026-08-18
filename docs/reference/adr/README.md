@@ -1,8 +1,9 @@
 # Architectural Decision Records (ADR)
 
-Records the six significant, open-ended decisions the task left to the implementer — each was
-posed as a clarifying question before any code was written. Smaller, implementation-level
-decisions are listed in [`design-decisions.md`](../design-decisions.md).
+Records significant, open-ended decisions left to the implementer. The first six were each posed
+as a clarifying question before any code was written; later entries record equally significant
+decisions made after the initial build. Smaller, implementation-level decisions are listed in
+[`design-decisions.md`](../design-decisions.md).
 
 | ADR | Decision |
 | --- | --- |
@@ -12,3 +13,4 @@ decisions are listed in [`design-decisions.md`](../design-decisions.md).
 | [0004](0004-frontend-calls-api-over-http.md) | Frontend calls the API over HTTP, not by direct reference |
 | [0005](0005-hermetic-tests-with-opt-in-live-smoke.md) | Fully hermetic test suite, with an opt-in live smoke test |
 | [0006](0006-danish-ui-english-codebase.md) | Danish UI language, English codebase and API contract |
+| [0007](0007-net10-upgrade.md) | Upgrade from .NET 8 to .NET 10, OpenAPI generation moved off Swashbuckle |
