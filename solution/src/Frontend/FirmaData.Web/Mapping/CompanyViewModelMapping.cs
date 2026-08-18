@@ -32,8 +32,8 @@ public static class CompanyViewModelMapping
             Year = year,
             StatisticsAvailable = statistics is not null,
             StatisticsNotice = StatisticsNotice(response.StatisticsStatus, year),
-            WorkplacesDisplay = FormatCount(statistics?.Workplaces),
-            EmployeesDisplay = FormatCount(statistics?.Employees),
+            WorkplacesEndNovemberDisplay = FormatCount(statistics?.WorkplacesEndNovember),
+            JobsEndNovemberDisplay = FormatCount(statistics?.JobsEndNovember),
             FullTimeEquivalentsDisplay = FormatCount(statistics?.FullTimeEquivalents),
             WageSumDisplay = statistics?.WageSumMillionDkk is { } wageSum
                 ? $"{wageSum.ToString("N0", DanishCulture)} mio. kr."

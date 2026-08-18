@@ -19,3 +19,4 @@ decisions made after the initial build. Smaller, implementation-level decisions 
 | [0010](0010-search-fanout-and-input-limits.md) | Cap search fan-out before enrichment, and validate search input |
 | [0011](0011-statbank-400-classification.md) | Classify Statbank 400s instead of treating them all alike |
 | [0012](0012-config-driven-resilience-and-cleanup.md) | Config-driven resilience budgets, CVR caching, PII-safe logging, and TimeProvider |
+| [0013](0013-contract-field-renaming.md) | Rename ambiguous contract fields in place, no `/api/v2` |
