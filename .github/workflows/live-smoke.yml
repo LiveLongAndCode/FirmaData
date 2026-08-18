@@ -1,0 +1,63 @@
+name: Live smoke tests
+
+# Runs the [Trait("Category","Live")] tests against the real apicvr.dk / api.statbank.dk APIs
+# (plan section 8). Deliberately kept out of ci.yml: a failure here means the upstream contract
+# changed, not that the code is broken, so it must never block a PR merge.
+on:
+  workflow_dispatch: {}
+  schedule:
+    - cron: "0 5 * * *"
+
+permissions:
+  contents: read
+
+env:
+  DOTNET_NOLOGO: true
+  DOTNET_CLI_TELEMETRY_OPTOUT: true
+  DOTNET_SKIP_FIRST_TIME_EXPERIENCE: true
+
+jobs:
+  live-smoke:
+    name: Live smoke tests
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      checks: write
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-dotnet@v6
+        with:
+          global-json-file: global.json
+          cache: true
+          cache-dependency-path: |
+            solution/**/*.csproj
+            solution/Directory.Packages.props
+
+      - name: Restore
+        working-directory: solution
+        run: dotnet restore FirmaData.sln
+
+      - name: Build
+        working-directory: solution
+        run: dotnet build FirmaData.sln --configuration Release --no-restore
+
+      - name: Run live smoke tests
+        working-directory: solution
+        run: >
+          dotnet test FirmaData.sln
+          --configuration Release
+          --no-build
+          --filter "Category=Live"
+          --logger "trx;LogFileName=live-smoke-results.trx"
+          --results-directory ./TestResults
+
+      - name: Publish test results
+        if: always()
+        uses: dorny/test-reporter@v3
+        with:
+          name: Live smoke results
+          path: solution/TestResults/**/*.trx
+          reporter: dotnet-trx
+          fail-on-error: false

@@ -1,0 +1,70 @@
+# Runs from the repository root (unlike every other command in plans/build-from-scratch.md),
+# because it mounts ./ops in addition to building ./solution (plan section 9.2).
+
+# Pinned/custom name, not inferred from the directory name.
+name: firmadata
+
+services:
+  firmadata-api:
+    build:
+      context: ./solution
+      dockerfile: src/Backend/FirmaData.Api/Dockerfile
+    ports:
+      - "8080:8080"
+    environment:
+      # Swagger UI (Program.cs) is gated on IsDevelopment() -- kept on here so the README's
+      # "four URLs" (UI, Swagger, Prometheus, Grafana) all resolve straight out of
+      # `docker compose up --build` with no extra steps, matching this phase's exit criterion.
+      # CvrOptions/StatbankOptions need no override: their defaults already point at the real
+      # apicvr.dk / api.statbank.dk (there is no mock for either in this project).
+      ASPNETCORE_ENVIRONMENT: Development
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health/ready"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 10s
+
+  firmadata-web:
+    build:
+      context: ./solution
+      dockerfile: src/Frontend/FirmaData.Web/Dockerfile
+    ports:
+      - "8090:8080"
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+      # Overrides appsettings.json's localhost default (plan section 15) -- inside the compose
+      # network, the API is reachable by its service name, not localhost.
+      Api__BaseUrl: http://firmadata-api:8080/
+    depends_on:
+      firmadata-api:
+        condition: service_healthy
+
+  prometheus:
+    # Pinned, not :latest -- prom/prometheus's newer major line was confirmed during Phase 7 to
+    # store scraped metric names with dots instead of underscores (firmadata.dependency.requests
+    # rather than firmadata_dependency_requests), which silently breaks every PromQL query in
+    # the provisioned dashboard. v2.53.0 is a known-good, widely used stable release.
+    image: prom/prometheus:v2.53.0
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./ops/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+    depends_on:
+      - firmadata-api
+
+  grafana:
+    image: grafana/grafana:11.2.0
+    ports:
+      - "3000:3000"
+    environment:
+      # Anonymous viewer: The dashboard opens immediately for viewing. Logins not allowed for demo.
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Viewer
+      GF_AUTH_DISABLE_LOGIN_FORM: "true"
+    volumes:
+      - ./ops/grafana/provisioning:/etc/grafana/provisioning:ro
+    depends_on:
+      - prometheus

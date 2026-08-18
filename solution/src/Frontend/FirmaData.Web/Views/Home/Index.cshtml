@@ -1,0 +1,35 @@
+@model SearchViewModel
+@{
+    ViewData["Title"] = "Søg";
+}
+
+<section class="search-panel" aria-labelledby="search-heading">
+    <h1 id="search-heading">Søg efter en virksomhed</h1>
+    <p class="lead">Indtast et CVR-nummer (8 cifre) eller et firmanavn.</p>
+
+    @if (!string.IsNullOrEmpty(Model.SearchError))
+    {
+        <p class="alert alert--error" role="alert">@Model.SearchError</p>
+    }
+
+    <form asp-controller="Home" asp-action="Index" method="post" class="search-form" data-loading-form data-loading-text="Søger…">
+        <div asp-validation-summary="ModelOnly" class="validation-summary" role="alert"></div>
+
+        <div class="form-row">
+            <label asp-for="Query">CVR-nummer eller firmanavn</label>
+            <input asp-for="Query" class="text-input" autocomplete="off" placeholder="fx 16500836 eller LB Forsikring" autofocus />
+            <span asp-validation-for="Query" class="field-error"></span>
+        </div>
+
+        <div class="form-row">
+            <label asp-for="Year">Statistikår</label>
+            <select asp-for="Year" class="select-input" asp-items="@(new SelectList(Model.AvailableYears, Model.Year))"></select>
+        </div>
+
+        <button type="submit" class="btn-primary">Søg</button>
+    </form>
+</section>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+}

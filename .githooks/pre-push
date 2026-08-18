@@ -1,0 +1,29 @@
+#!/bin/sh
+# Blocks direct pushes, force-pushes, and deletion of origin/main.
+# Activate with: git config --local core.hooksPath .githooks
+
+zero="0000000000000000000000000000000000000000"
+
+while read -r local_ref local_sha remote_ref remote_sha; do
+	branch=$(echo "$remote_ref" | sed -n 's#^refs/heads/##p')
+
+	if [ "$branch" != "main" ]; then
+		continue
+	fi
+
+	if [ "$local_sha" = "$zero" ]; then
+		echo "error: deleting 'main' via push is not allowed." >&2
+		exit 1
+	fi
+
+	if [ "$remote_sha" != "$zero" ] && ! git merge-base --is-ancestor "$remote_sha" "$local_sha"; then
+		echo "error: force-push to 'main' is not allowed." >&2
+		exit 1
+	fi
+
+	echo "error: direct push to 'main' is not allowed." >&2
+	echo "Push a feature branch and open a pull request against 'main' instead." >&2
+	exit 1
+done
+
+exit 0
