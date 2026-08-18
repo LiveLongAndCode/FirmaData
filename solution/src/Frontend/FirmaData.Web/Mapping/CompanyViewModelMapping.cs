@@ -43,14 +43,15 @@ public static class CompanyViewModelMapping
 
     private static string FormatCount(long? value) => value?.ToString("N0", DanishCulture) ?? "Ukendt";
 
-    // "Ok" -> no notice, the figures speak for themselves. The other two are Domain's
-    // EnrichmentStatus cases, serialized as a plain string in EnrichedCompanyResponse (Contracts
-    // must not depend on Domain -- plan section 2.1) -- matched here by name rather than pulled
-    // in as an enum reference.
+    // "Ok" -> no notice, the figures speak for themselves. The rest are Domain's EnrichmentStatus
+    // cases, serialized as a plain string in EnrichedCompanyResponse (Contracts must not depend
+    // on Domain -- plan section 2.1) -- matched here by name rather than pulled in as an enum
+    // reference.
     private static string? StatisticsNotice(string statisticsStatus, int year) => statisticsStatus switch
     {
         "NotAvailableForYear" => $"Der er ikke branchestatistik tilgængelig for {year}.",
         "SourceUnavailable" => "Branchestatistik kunne ikke hentes lige nu. Prøv igen senere.",
+        "IndustryCodeNotSupported" => "Branchekoden understøttes endnu ikke af Danmarks Statistik.",
         _ => null,
     };
 }

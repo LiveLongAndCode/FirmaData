@@ -14,6 +14,15 @@ Found by probing both APIs directly before writing the adapters:
    against those codes rather than translatable prose. The CSV itself is semicolon-separated and
    carries a UTF-8 BOM — `StreamReader` with `detectEncodingFromByteOrderMarks: true` handles it;
    a naive `string` conversion would leave a stray U+FEFF on the first column name.
+3. **A valid CVR industry code can still have no Statbank data.** CVR has started issuing
+   branchekoder from the 2025 revision (DB25); ERHV1 only understands the older DB07
+   classification. `IndustryCode` validates format only (six digits), so a DB25 code passes
+   Domain validation and only fails once it reaches Statbank — surfaced as
+   `EnrichmentStatus.IndustryCodeNotSupported`, distinct from `NotAvailableForYear` (the year is
+   fine, the code isn't) and `SourceUnavailable` (Statbank itself is unreachable). There is no
+   DB25→DB07 mapping table (a deliberate fase-6/F5 scope decision — see
+   [ADR-0011](adr/0011-statbank-400-classification.md)); the industry code is simply reported as
+   unsupported for statistics rather than guessed at.
 
 ## Codebase quirks
 

@@ -17,3 +17,4 @@ decisions made after the initial build. Smaller, implementation-level decisions 
 | [0008](0008-statbank-parsing-hardening.md) | Strict Statbank CSV validation, `Unexpected` mapped to 502 |
 | [0009](0009-name-search-normalization-and-reranking.md) | Normalize the name-search query, and re-rank results locally |
 | [0010](0010-search-fanout-and-input-limits.md) | Cap search fan-out before enrichment, and validate search input |
+| [0011](0011-statbank-400-classification.md) | Classify Statbank 400s instead of treating them all alike |
