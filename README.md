@@ -4,7 +4,7 @@ A service that enriches Danish company data with industry statistics. It puts tw
 sources — the CVR API and Danmarks Statistik — behind one simplified REST API, plus an MVC
 frontend that consumes that API like any other client would.
 
-C# / .NET 8, Ports & Adapters (hexagonal) architecture.
+C# / .NET 10, Ports & Adapters (hexagonal) architecture.
 
 ```mermaid
 graph LR

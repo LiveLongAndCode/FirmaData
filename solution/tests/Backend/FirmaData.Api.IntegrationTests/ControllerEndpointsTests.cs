@@ -20,7 +20,7 @@ public class ControllerEndpointsTests(ApiFactory factory) : IClassFixture<ApiFac
         // (MapPrometheusScrapingEndpoint, section 7.2) are deliberately mapped as
         // framework-provided endpoints, not business routes -- the guard here is about the
         // API's own surface, not about infrastructure endpoints having a ControllerActionDescriptor too.
-        string[] infrastructurePrefixes = ["/health", "/metrics"];
+        string[] infrastructurePrefixes = ["/health", "/metrics", "/openapi"];
         var endpoints = dataSources
             .SelectMany(source => source.Endpoints)
             .OfType<RouteEndpoint>()

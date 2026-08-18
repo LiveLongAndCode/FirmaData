@@ -1,7 +1,7 @@
 # Multi-stage build (plan section 9.2). Build context is ./solution (docker-compose.yml at the
 # repository root) -- every path below is relative to that root, not to this Dockerfile's own
 # directory.
-FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
+FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
 WORKDIR /src
 
 # Restore first, project files only, so this layer caches across source-only changes.
@@ -27,9 +27,9 @@ RUN dotnet publish src/Backend/FirmaData.Api/FirmaData.Api.csproj \
     --no-restore \
     --output /app/publish
 
-# .NET 8's aspnet image already runs as the non-root "app" user and listens on 8080 by default
+# .NET 10's aspnet image already runs as the non-root "app" user and listens on 8080 by default
 # (ASPNETCORE_HTTP_PORTS, baked into the image) -- no extra USER/ENV needed for either.
-FROM mcr.microsoft.com/dotnet/aspnet:8.0 AS final
+FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS final
 WORKDIR /app
 
 # curl is needed for docker-compose.yml's healthcheck (CMD curl against /health/ready) -- the

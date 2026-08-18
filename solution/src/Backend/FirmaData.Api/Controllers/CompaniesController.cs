@@ -1,6 +1,7 @@
 using FirmaData.Api.Errors;
 using FirmaData.Api.Mapping;
 using FirmaData.Application;
+using FirmaData.Contracts;
 using FirmaData.Domain;
 using Microsoft.AspNetCore.Mvc;
 
@@ -15,6 +16,10 @@ public sealed class CompaniesController(ICompanyEnrichmentService enrichmentServ
     private const int MaxSearchResults = 10;
 
     [HttpGet("{cvrNumber}")]
+    [ProducesResponseType<EnrichedCompanyResponse>(StatusCodes.Status200OK)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status404NotFound)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status503ServiceUnavailable)]
     public async Task<IActionResult> GetByCvr(string cvrNumber, [FromQuery] int? year, CancellationToken ct)
     {
         var cvrResult = CvrNumber.TryCreate(cvrNumber);
@@ -40,6 +45,9 @@ public sealed class CompaniesController(ICompanyEnrichmentService enrichmentServ
     }
 
     [HttpGet]
+    [ProducesResponseType<IEnumerable<EnrichedCompanyResponse>>(StatusCodes.Status200OK)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status503ServiceUnavailable)]
     public async Task<IActionResult> SearchByName([FromQuery] string? name, [FromQuery] int? year, CancellationToken ct)
     {
         if (string.IsNullOrWhiteSpace(name))

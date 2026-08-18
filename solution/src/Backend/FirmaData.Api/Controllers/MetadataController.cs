@@ -11,6 +11,8 @@ public sealed class MetadataController(IIndustryStatisticsProvider statisticsPro
 {
     // Drives the UI's year dropdown and the API's own default year (plan section 4.2/5.1).
     [HttpGet("years")]
+    [ProducesResponseType<AvailableYearsResponse>(StatusCodes.Status200OK)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status503ServiceUnavailable)]
     public async Task<IActionResult> GetAvailableYears(CancellationToken ct)
     {
         var result = await statisticsProvider.GetAvailableYearsAsync(ct);

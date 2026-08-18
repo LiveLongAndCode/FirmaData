@@ -32,9 +32,7 @@ public class Program
 
         // Add services to the container.
         builder.Services.AddControllers();
-        // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
-        builder.Services.AddEndpointsApiExplorer();
-        builder.Services.AddSwaggerGen();
+        builder.Services.AddOpenApi();
 
         // The dependency-metrics handler is added before the resilience pipeline on each typed
         // client, so it wraps the whole pipeline rather than being wrapped by it (see the two
@@ -77,8 +75,8 @@ public class Program
         // Configure the HTTP request pipeline.
         if (app.Environment.IsDevelopment())
         {
-            app.UseSwagger();
-            app.UseSwaggerUI();
+            app.MapOpenApi();
+            app.UseSwaggerUI(options => options.SwaggerEndpoint("/openapi/v1.json", "FirmaData API v1"));
         }
 
         app.UseHttpsRedirection();
