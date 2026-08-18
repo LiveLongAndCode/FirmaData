@@ -19,7 +19,45 @@ graph LR
     Prom --> Grafana["Grafana dashboard"]
 ```
 
-## Quick start
+<details>
+<summary>Diagram not rendering? Plain-text fallback</summary>
+
+```
+Browser
+   |
+   v
+FirmaData.Web (MVC)
+   |
+   | HTTP
+   v
+FirmaData.Api (composition root) --- /metrics ---> Prometheus ---> Grafana dashboard
+   |
+   v
+FirmaData.Application (CompanyEnrichmentService)
+   |
+   +-- ICompanyDirectory --------------> FirmaData.Cvr adapter ---------------------> apicvr.dk (HTTP)
+   |
+   +-- IIndustryStatisticsProvider ----> FirmaData.Statbank adapter                -> api.statbank.dk (HTTP)
+                                          (+ caching decorator)
+```
+
+</details>
+
+## Start without Docker - API and Web access only
+
+API:
+```
+cd solution\src\Backend\FirmaData.Api
+dotnet run
+```
+
+Web:
+```
+cd solution\src\Frontend\FirmaData.Web
+dotnet run
+```
+
+## Start using Docker
 
 ```bash
 docker compose up --build
@@ -32,19 +70,23 @@ docker compose up --build
 | Prometheus | http://localhost:9090/ |
 | Grafana dashboard | http://localhost:3000/ |
 
+## Start using Docker - auto-open browser and tabs
+
 On Windows:
 * [`web/run.bat`](web/run.bat) does the same and opens all four tabs once the API is
 healthy;
 * [`web/shutdown.bat`](web/shutdown.bat) stops the stack again.
 
-Try it (CVR `16500836` is LB Forsikring A/S, used as a real fixture throughout the test suite):
+## Sample calls
+
+Company `LB Forsikring` with CVR number `16500836` is used for samples and tests throughout the project:
 
 ```bash
 curl -s "http://localhost:8080/api/v1/companies/16500836?year=2022"
 curl -s "http://localhost:8080/api/v1/companies?name=LB%20Forsikring"
 ```
 
-## Run the tests
+## Running the test suite without the live smoketest ("Category", "Live"):
 
 ```bash
 dotnet test solution/FirmaData.sln --filter "Category!=Live"
