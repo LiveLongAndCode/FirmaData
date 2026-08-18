@@ -159,6 +159,141 @@ public class StatbankClientTests
     }
 
     [Fact]
+    public async Task GetAsync_WithDecimalCommaInWageSum_ReturnsUnexpectedInsteadOfSilentlyMisreading()
+    {
+        // Regression for the bug this fase fixes: NumberStyles.Number previously read "1234,5"
+        // as a thousands separator and silently parsed it as 12345 -- a factor-10 error
+        // presented as fact. It must now be rejected, not misread.
+        var handler = StubHttpMessageHandler.Returning(HttpStatusCode.OK, Csv(wageSum: "1234,5"));
+        var sut = CreateClient(handler);
+
+        var result = await sut.GetAsync(Erhv651200, Year2022, CancellationToken.None);
+
+        result.IsFailure.Should().BeTrue();
+        result.Error.Type.Should().Be(ResultErrorType.Unexpected);
+    }
+
+    [Fact]
+    public async Task GetAsync_WithNonNumericAnsatte_ReturnsUnexpectedNotAnUnhandledException()
+    {
+        var handler = StubHttpMessageHandler.Returning(HttpStatusCode.OK, Csv(employees: "abc"));
+        var sut = CreateClient(handler);
+
+        var result = await sut.GetAsync(Erhv651200, Year2022, CancellationToken.None);
+
+        result.IsFailure.Should().BeTrue();
+        result.Error.Type.Should().Be(ResultErrorType.Unexpected);
+    }
+
+    [Fact]
+    public async Task GetAsync_WithMismatchedBrancheCode_ReturnsUnexpected()
+    {
+        var handler = StubHttpMessageHandler.Returning(
+            HttpStatusCode.OK,
+            "BRANCHE07;TAL;TID;INDHOLD\n" +
+            "999999;ARBSTED;2022;166\n" +
+            "999999;ANSATTE;2022;15206\n" +
+            "999999;FULDBESK;2022;13458\n" +
+            "999999;LØNSUM;2022;10380\n");
+        var sut = CreateClient(handler);
+
+        var result = await sut.GetAsync(Erhv651200, Year2022, CancellationToken.None);
+
+        result.IsFailure.Should().BeTrue();
+        result.Error.Type.Should().Be(ResultErrorType.Unexpected);
+    }
+
+    [Fact]
+    public async Task GetAsync_WithMismatchedYear_ReturnsUnexpected()
+    {
+        var handler = StubHttpMessageHandler.Returning(
+            HttpStatusCode.OK,
+            "BRANCHE07;TAL;TID;INDHOLD\n" +
+            "651200;ARBSTED;2021;166\n" +
+            "651200;ANSATTE;2021;15206\n" +
+            "651200;FULDBESK;2021;13458\n" +
+            "651200;LØNSUM;2021;10380\n");
+        var sut = CreateClient(handler);
+
+        var result = await sut.GetAsync(Erhv651200, Year2022, CancellationToken.None);
+
+        result.IsFailure.Should().BeTrue();
+        result.Error.Type.Should().Be(ResultErrorType.Unexpected);
+    }
+
+    [Fact]
+    public async Task GetAsync_WithDuplicateRowForSameMeasure_ReturnsUnexpected()
+    {
+        var handler = StubHttpMessageHandler.Returning(
+            HttpStatusCode.OK,
+            "BRANCHE07;TAL;TID;INDHOLD\n" +
+            "651200;ARBSTED;2022;166\n" +
+            "651200;ARBSTED;2022;200\n" +
+            "651200;ANSATTE;2022;15206\n" +
+            "651200;FULDBESK;2022;13458\n" +
+            "651200;LØNSUM;2022;10380\n");
+        var sut = CreateClient(handler);
+
+        var result = await sut.GetAsync(Erhv651200, Year2022, CancellationToken.None);
+
+        result.IsFailure.Should().BeTrue();
+        result.Error.Type.Should().Be(ResultErrorType.Unexpected);
+    }
+
+    [Fact]
+    public async Task GetAsync_WithMissingMeasureRow_ReturnsUnexpected()
+    {
+        // Only three of the four requested TAL measures came back -- GetValueOrDefault used to
+        // turn this into a silent null, indistinguishable from Statbank's own ".." marker.
+        var handler = StubHttpMessageHandler.Returning(
+            HttpStatusCode.OK,
+            "BRANCHE07;TAL;TID;INDHOLD\n" +
+            "651200;ARBSTED;2022;166\n" +
+            "651200;ANSATTE;2022;15206\n" +
+            "651200;FULDBESK;2022;13458\n");
+        var sut = CreateClient(handler);
+
+        var result = await sut.GetAsync(Erhv651200, Year2022, CancellationToken.None);
+
+        result.IsFailure.Should().BeTrue();
+        result.Error.Type.Should().Be(ResultErrorType.Unexpected);
+    }
+
+    [Fact]
+    public async Task GetAsync_WithEmptyCellForAMeasure_ReturnsUnexpectedNotNull()
+    {
+        // An empty cell is a malformed response, distinct from Statbank's explicit ".." marker
+        // for a suppressed value -- it must not be read as null.
+        var handler = StubHttpMessageHandler.Returning(HttpStatusCode.OK, Csv(fullTimeEquivalents: ""));
+        var sut = CreateClient(handler);
+
+        var result = await sut.GetAsync(Erhv651200, Year2022, CancellationToken.None);
+
+        result.IsFailure.Should().BeTrue();
+        result.Error.Type.Should().Be(ResultErrorType.Unexpected);
+    }
+
+    [Fact]
+    public async Task GetAsync_WithReorderedHeaderColumns_StillParsesCorrectly()
+    {
+        // Column order comes from the header, not a hardcoded index -- a reordering upstream
+        // must be tolerated rather than silently reading the wrong column.
+        var handler = StubHttpMessageHandler.Returning(
+            HttpStatusCode.OK,
+            "TID;INDHOLD;BRANCHE07;TAL\n" +
+            "2022;166;651200;ARBSTED\n" +
+            "2022;15206;651200;ANSATTE\n" +
+            "2022;13458;651200;FULDBESK\n" +
+            "2022;10380;651200;LØNSUM\n");
+        var sut = CreateClient(handler);
+
+        var result = await sut.GetAsync(Erhv651200, Year2022, CancellationToken.None);
+
+        result.IsSuccess.Should().BeTrue();
+        result.Value.Workplaces.Should().Be(166);
+    }
+
+    [Fact]
     public async Task GetAsync_WhenCancelled_Throws()
     {
         var handler = StubHttpMessageHandler.Returning(HttpStatusCode.OK, Csv());
