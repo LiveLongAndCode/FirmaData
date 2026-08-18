@@ -2,6 +2,7 @@ using FirmaData.Application;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Http.Resilience;
 using Microsoft.Extensions.Options;
 
 namespace FirmaData.Statbank;
@@ -20,6 +21,12 @@ public static class ServiceCollectionExtensions
             .ValidateDataAnnotations()
             .ValidateOnStart();
 
+        services
+            .AddOptions<ResilienceOptions>()
+            .Bind(configuration.GetSection($"{StatbankOptions.SectionName}:{ResilienceOptions.SectionName}"))
+            .ValidateDataAnnotations()
+            .ValidateOnStart();
+
         services.AddMemoryCache(options => options.SizeLimit = CacheSizeLimit);
 
         // Resilience is deliberately not chained on here -- FirmaData.Api (the composition root)
@@ -30,6 +37,11 @@ public static class ServiceCollectionExtensions
         {
             var options = provider.GetRequiredService<IOptions<StatbankOptions>>().Value;
             client.BaseAddress = new Uri(options.BaseUrl);
+
+            // The resilience pipeline (added below) owns the request budget end to end; without
+            // this, HttpClient's own default 100s timeout would compete with Polly's much
+            // tighter one.
+            client.Timeout = Timeout.InfiniteTimeSpan;
         });
 
         // The caching decorator (section 6.2) wraps the typed client registered above -- a
@@ -48,7 +60,21 @@ public static class ServiceCollectionExtensions
     // handler's default ShouldHandle predicate excludes 400/404 from "transient" -- an
     // unavailable year (EXTRACT-NOTFOUND, mapped to NotFound in StatbankClient) is never
     // retried.
-    public static IHttpClientBuilder AddStatbankResiliencePipeline(this IHttpClientBuilder builder)
+    //
+    // Values now come from ResilienceOptions (plan fase 7, F8) instead of being hardcoded here;
+    // defaults are unchanged, so behaviour with no configuration is identical to before.
+    //
+    // Bound eagerly from IConfiguration here, not via a DI-resolved IOptions<ResilienceOptions>
+    // inside AddStandardResilienceHandler's lazy Configure callback -- configuration is read
+    // directly here instead, the same IConfiguration instance builder.Configuration already is by
+    // the time this method runs, so the integration tests' host overrides (added before
+    // Program.Main's builder.Build()) are already present -- this is a one-time eager read of
+    // static appsettings, not a value that needs to change at runtime. (While diagnosing this, a
+    // DI-resolved IOptions<ResilienceOptions> approach was also tried and reproducibly hung every
+    // retried request for ~100s -- that turned out to be an unrelated bug, an unkeyed
+    // FakeTimeProvider registration that Polly's own retry delays picked up and froze against;
+    // see AppTimeProvider. Both approaches work correctly now; this one was kept for simplicity.)
+    public static IHttpClientBuilder AddStatbankResiliencePipeline(this IHttpClientBuilder builder, IConfiguration configuration)
     {
         // Forces CircuitStateMetrics' static constructor (and so its ObservableGauge
         // registration) to run at startup -- otherwise, in a healthy process where the circuit
@@ -56,15 +82,18 @@ public static class ServiceCollectionExtensions
         // /metrics at all. The circuit does start Closed, so this is also just correct.
         CircuitStateMetrics.RecordClosed();
 
+        var config = configuration.GetSection($"{StatbankOptions.SectionName}:{ResilienceOptions.SectionName}").Get<ResilienceOptions>()
+            ?? new ResilienceOptions();
+
         builder.AddStandardResilienceHandler(options =>
         {
-            options.TotalRequestTimeout.Timeout = TimeSpan.FromSeconds(15);
-            options.AttemptTimeout.Timeout = TimeSpan.FromSeconds(5);
-            options.Retry.MaxRetryAttempts = 3;
-            options.CircuitBreaker.FailureRatio = 0.5;
-            options.CircuitBreaker.MinimumThroughput = 10;
-            options.CircuitBreaker.SamplingDuration = TimeSpan.FromSeconds(30);
-            options.CircuitBreaker.BreakDuration = TimeSpan.FromSeconds(30);
+            options.TotalRequestTimeout.Timeout = TimeSpan.FromSeconds(config.TotalTimeoutSeconds);
+            options.AttemptTimeout.Timeout = TimeSpan.FromSeconds(config.AttemptTimeoutSeconds);
+            options.Retry.MaxRetryAttempts = config.MaxRetryAttempts;
+            options.CircuitBreaker.FailureRatio = config.CircuitFailureRatio;
+            options.CircuitBreaker.MinimumThroughput = config.CircuitMinimumThroughput;
+            options.CircuitBreaker.SamplingDuration = TimeSpan.FromSeconds(config.CircuitSamplingDurationSeconds);
+            options.CircuitBreaker.BreakDuration = TimeSpan.FromSeconds(config.CircuitBreakDurationSeconds);
 
             // firmadata.circuit.state (section 7.2), dependency="statbank".
             options.CircuitBreaker.OnOpened = _ =>

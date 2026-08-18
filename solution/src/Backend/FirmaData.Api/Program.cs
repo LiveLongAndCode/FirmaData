@@ -35,15 +35,27 @@ public class Program
         builder.Services.AddControllers();
         builder.Services.AddOpenApi();
 
+        // Injected into EnrichedCompanyMapping and MetadataController instead of both reading
+        // DateTime.UtcNow directly (plan fase 7, F9c), so tests can substitute a FakeTimeProvider
+        // for deterministic assertions. Registered under a KEY ("app"), not as the unkeyed
+        // TimeProvider: Microsoft.Extensions.Http.Resilience's pipelines resolve an unkeyed
+        // TimeProvider from the same container to drive their own retry/timeout delays, and a
+        // frozen FakeTimeProvider substituted there (as ApiFactory does, for this registration)
+        // stalls every scheduled retry forever -- confirmed by reproducing a ~100s hang on every
+        // retried request in CompaniesEndpointTests once a test-wide unkeyed FakeTimeProvider was
+        // introduced, which disappeared once this was switched to a keyed registration. Keying it
+        // keeps the app's own clock overridable in tests without touching Polly's.
+        builder.Services.AddKeyedSingleton(AppTimeProvider.ServiceKey, TimeProvider.System);
+
         // The dependency-metrics handler is added before the resilience pipeline on each typed
         // client, so it wraps the whole pipeline rather than being wrapped by it (see the two
         // ServiceCollectionExtensions for why that ordering matters for outcome=circuit_open).
         builder.Services.AddCvrClient(builder.Configuration)
             .AddDependencyMetrics("cvr")
-            .AddCvrResiliencePipeline();
+            .AddCvrResiliencePipeline(builder.Configuration);
         builder.Services.AddStatbankClient(builder.Configuration)
             .AddDependencyMetrics("statbank")
-            .AddStatbankResiliencePipeline();
+            .AddStatbankResiliencePipeline(builder.Configuration);
 
         builder.Services
             .AddOptions<SearchOptions>()

@@ -2,12 +2,21 @@ using FirmaData.Application;
 using FluentAssertions;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Http.Resilience;
 using Microsoft.Extensions.Options;
 
 namespace FirmaData.Statbank.Tests;
 
 public class ServiceCollectionExtensionsTests
 {
+    // AddStandardResilienceHandler().PipelineName is a pure function of the typed client's DI
+    // name -- computing it on a throwaway registration is a reliable way to look up the same
+    // named HttpStandardResilienceOptions the real pipeline (built via AddStatbankClient +
+    // AddStatbankResiliencePipeline) is configured under.
+    private static string ResolveStatbankPipelineName() =>
+        new ServiceCollection().AddHttpClient<StatbankClient>().AddStandardResilienceHandler().PipelineName;
+
+
     [Fact]
     public void AddStatbankClient_RegistersIIndustryStatisticsProvider_ResolvingToTheCachingDecorator()
     {
@@ -44,5 +53,59 @@ public class ServiceCollectionExtensionsTests
         var act = () => provider.GetRequiredService<IOptions<StatbankOptions>>().Value;
 
         act.Should().Throw<OptionsValidationException>();
+    }
+
+    [Fact]
+    public void AddStatbankResiliencePipeline_WithConfiguredValues_AppliesThemToTheBuiltPipeline()
+    {
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["Statbank:BaseUrl"] = "https://api.statbank.dk/",
+                ["Statbank:Resilience:TotalTimeoutSeconds"] = "42",
+                ["Statbank:Resilience:AttemptTimeoutSeconds"] = "7",
+                ["Statbank:Resilience:MaxRetryAttempts"] = "9",
+                ["Statbank:Resilience:CircuitFailureRatio"] = "0.25",
+                ["Statbank:Resilience:CircuitMinimumThroughput"] = "20",
+                ["Statbank:Resilience:CircuitSamplingDurationSeconds"] = "60",
+                ["Statbank:Resilience:CircuitBreakDurationSeconds"] = "90",
+            })
+            .Build();
+
+        var services = new ServiceCollection();
+        services.AddStatbankClient(configuration).AddStatbankResiliencePipeline(configuration);
+        using var provider = services.BuildServiceProvider();
+
+        var options = provider.GetRequiredService<IOptionsMonitor<HttpStandardResilienceOptions>>().Get(ResolveStatbankPipelineName());
+
+        options.TotalRequestTimeout.Timeout.Should().Be(TimeSpan.FromSeconds(42));
+        options.AttemptTimeout.Timeout.Should().Be(TimeSpan.FromSeconds(7));
+        options.Retry.MaxRetryAttempts.Should().Be(9);
+        options.CircuitBreaker.FailureRatio.Should().Be(0.25);
+        options.CircuitBreaker.MinimumThroughput.Should().Be(20);
+        options.CircuitBreaker.SamplingDuration.Should().Be(TimeSpan.FromSeconds(60));
+        options.CircuitBreaker.BreakDuration.Should().Be(TimeSpan.FromSeconds(90));
+    }
+
+    [Fact]
+    public void AddStatbankResiliencePipeline_WithEmptyConfiguration_KeepsThePreviousHardcodedDefaults()
+    {
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?> { ["Statbank:BaseUrl"] = "https://api.statbank.dk/" })
+            .Build();
+
+        var services = new ServiceCollection();
+        services.AddStatbankClient(configuration).AddStatbankResiliencePipeline(configuration);
+        using var provider = services.BuildServiceProvider();
+
+        var options = provider.GetRequiredService<IOptionsMonitor<HttpStandardResilienceOptions>>().Get(ResolveStatbankPipelineName());
+
+        options.TotalRequestTimeout.Timeout.Should().Be(TimeSpan.FromSeconds(15));
+        options.AttemptTimeout.Timeout.Should().Be(TimeSpan.FromSeconds(5));
+        options.Retry.MaxRetryAttempts.Should().Be(3);
+        options.CircuitBreaker.FailureRatio.Should().Be(0.5);
+        options.CircuitBreaker.MinimumThroughput.Should().Be(10);
+        options.CircuitBreaker.SamplingDuration.Should().Be(TimeSpan.FromSeconds(30));
+        options.CircuitBreaker.BreakDuration.Should().Be(TimeSpan.FromSeconds(30));
     }
 }
