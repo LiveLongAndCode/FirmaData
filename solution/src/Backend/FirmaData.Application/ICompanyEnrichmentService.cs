@@ -6,5 +6,5 @@ public interface ICompanyEnrichmentService
 {
     Task<Result<EnrichedCompany>> EnrichByCvrAsync(CvrNumber cvr, StatisticsYear? year, CancellationToken ct);
 
-    Task<Result<IReadOnlyList<EnrichedCompany>>> SearchAndEnrichAsync(string name, StatisticsYear? year, CancellationToken ct);
+    Task<Result<IReadOnlyList<EnrichedCompany>>> SearchAndEnrichAsync(string name, StatisticsYear? year, int limit, CancellationToken ct);
 }

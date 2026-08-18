@@ -144,7 +144,7 @@ public class CompanyEnrichmentServiceTests
         directory.SearchByNameAsync("lb", Arg.Any<CancellationToken>())
             .Returns(Result.Unavailable("CVR API is down."));
 
-        var result = await sut.SearchAndEnrichAsync("lb", Year2022, CancellationToken.None);
+        var result = await sut.SearchAndEnrichAsync("lb", Year2022, 10, CancellationToken.None);
 
         result.IsFailure.Should().BeTrue();
         result.Error.Type.Should().Be(ResultErrorType.Unavailable);
@@ -157,7 +157,7 @@ public class CompanyEnrichmentServiceTests
         directory.SearchByNameAsync("no such company", Arg.Any<CancellationToken>())
             .Returns(Result<IReadOnlyList<Company>>.Success([]));
 
-        var result = await sut.SearchAndEnrichAsync("no such company", Year2022, CancellationToken.None);
+        var result = await sut.SearchAndEnrichAsync("no such company", Year2022, 10, CancellationToken.None);
 
         result.IsSuccess.Should().BeTrue();
         result.Value.Should().BeEmpty();
@@ -184,12 +184,87 @@ public class CompanyEnrichmentServiceTests
         statistics.GetAsync(Erhv651200, Year2022, Arg.Any<CancellationToken>()).Returns(Statistics(Erhv651200));
         statistics.GetAsync(otherIndustry, Year2022, Arg.Any<CancellationToken>()).Returns(Statistics(otherIndustry));
 
-        var result = await sut.SearchAndEnrichAsync("lb", Year2022, CancellationToken.None);
+        var result = await sut.SearchAndEnrichAsync("lb", Year2022, 10, CancellationToken.None);
 
         result.IsSuccess.Should().BeTrue();
         result.Value.Should().HaveCount(10);
         result.Value.Should().OnlyContain(company => company.StatisticsStatus == EnrichmentStatus.Ok);
         await statistics.Received(1).GetAsync(Erhv651200, Year2022, Arg.Any<CancellationToken>());
         await statistics.Received(1).GetAsync(otherIndustry, Year2022, Arg.Any<CancellationToken>());
+    }
+
+    // --- Fan-out limits (plan fase 5, F3) -----------------------------------------------------
+
+    [Fact]
+    public async Task SearchAndEnrichAsync_CapsResultsToLimitBeforeEnriching()
+    {
+        var (directory, statistics, sut) = CreateSut();
+
+        // 5 results, each with its own industry code -- if the cap ran after enrichment instead
+        // of before, all 5 distinct codes would still be looked up.
+        var companies = Enumerable.Range(0, 5)
+            .Select(i => LbForsikring with
+            {
+                Cvr = CvrNumber.TryCreate("16500836").Value,
+                IndustryCode = IndustryCode.TryCreate($"{620100 + i}").Value,
+            })
+            .ToList();
+
+        directory.SearchByNameAsync("lb", Arg.Any<CancellationToken>())
+            .Returns(Result<IReadOnlyList<Company>>.Success(companies));
+        statistics.GetAsync(Arg.Any<IndustryCode>(), Year2022, Arg.Any<CancellationToken>())
+            .Returns(callInfo => Statistics(callInfo.Arg<IndustryCode>()));
+
+        var result = await sut.SearchAndEnrichAsync("lb", Year2022, 2, CancellationToken.None);
+
+        result.IsSuccess.Should().BeTrue();
+        result.Value.Should().HaveCount(2);
+        await statistics.Received(2).GetAsync(Arg.Any<IndustryCode>(), Year2022, Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task SearchAndEnrichAsync_NeverRunsMoreThanMaxConcurrentStatisticsCallsAtOnce()
+    {
+        var directory = Substitute.For<ICompanyDirectory>();
+        var statistics = Substitute.For<IIndustryStatisticsProvider>();
+        var sut = new CompanyEnrichmentService(directory, statistics, maxConcurrentStatisticsCalls: 4);
+
+        var companies = Enumerable.Range(0, 50)
+            .Select(i => LbForsikring with
+            {
+                Cvr = CvrNumber.TryCreate("16500836").Value,
+                IndustryCode = IndustryCode.TryCreate($"{100000 + i}").Value,
+            })
+            .ToList();
+        directory.SearchByNameAsync("lb", Arg.Any<CancellationToken>())
+            .Returns(Result<IReadOnlyList<Company>>.Success(companies));
+
+        var concurrent = 0;
+        var maxObservedConcurrent = 0;
+        var gate = new object();
+        Func<NSubstitute.Core.CallInfo, Task<Result<IndustryStatistics>>> handler = async callInfo =>
+        {
+            lock (gate)
+            {
+                concurrent++;
+                maxObservedConcurrent = Math.Max(maxObservedConcurrent, concurrent);
+            }
+
+            await Task.Delay(20);
+
+            lock (gate)
+            {
+                concurrent--;
+            }
+
+            return Statistics(callInfo.Arg<IndustryCode>());
+        };
+        statistics.GetAsync(Arg.Any<IndustryCode>(), Year2022, Arg.Any<CancellationToken>()).Returns(handler);
+
+        var result = await sut.SearchAndEnrichAsync("lb", Year2022, 50, CancellationToken.None);
+
+        result.IsSuccess.Should().BeTrue();
+        result.Value.Should().HaveCount(50);
+        maxObservedConcurrent.Should().BeLessThanOrEqualTo(4);
     }
 }

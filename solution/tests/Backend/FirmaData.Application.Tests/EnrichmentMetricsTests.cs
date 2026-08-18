@@ -94,7 +94,7 @@ public class EnrichmentMetricsTests
             .Returns(Result<IReadOnlyList<Company>>.Success([]));
         var sut = new CompanyEnrichmentService(directory, statistics);
 
-        var measurements = await CaptureAsync(() => sut.SearchAndEnrichAsync("lb", Year2022, CancellationToken.None));
+        var measurements = await CaptureAsync(() => sut.SearchAndEnrichAsync("lb", Year2022, 10, CancellationToken.None));
 
         var duration = measurements.Single(m => m.Instrument == "firmadata.enrichment.duration");
         duration.Tags["lookup"].Should().Be("name");
