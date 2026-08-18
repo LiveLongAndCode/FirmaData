@@ -1,0 +1,14 @@
+{
+  "solution": {
+    "path": "FirmaData.sln",
+    "projects": [
+      "src\\Backend\\FirmaData.Domain\\FirmaData.Domain.csproj",
+      "src\\Backend\\FirmaData.Application\\FirmaData.Application.csproj",
+      "src\\Backend\\FirmaData.Cvr\\FirmaData.Cvr.csproj",
+      "src\\Backend\\FirmaData.Statbank\\FirmaData.Statbank.csproj",
+      "src\\Backend\\FirmaData.Contracts\\FirmaData.Contracts.csproj",
+      "src\\Backend\\FirmaData.Api\\FirmaData.Api.csproj",
+      "src\\Frontend\\FirmaData.Web\\FirmaData.Web.csproj"
+    ]
+  }
+}

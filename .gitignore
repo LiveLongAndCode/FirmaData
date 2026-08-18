@@ -1,0 +1,103 @@
+## .NET
+bin/
+obj/
+out/
+publish/
+
+## Build results
+[Dd]ebug/
+[Dd]ebug[Pp]ublish/
+[Rr]elease/
+[Rr]eleases/
+x64/
+x86/
+[Ww][Ii][Nn]32/
+[Aa][Rr][Mm]/
+[Aa][Rr][Mm]64/
+bld/
+[Bb]in/
+[Oo]bj/
+[Ll]og/
+[Ll]ogs/
+
+## Visual Studio
+.vs/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+## Rider / JetBrains
+.idea/
+*.sln.iml
+
+## VS Code
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+
+## Test results
+[Tt]est[Rr]esult*/
+coverage*.json
+coverage*.xml
+coverage*.info
+*.coverage
+*.coveragexml
+*.trx
+[Cc]overage/
+.coverlet/
+BenchmarkDotNet.Artifacts/
+
+## Build logs
+*.binlog
+msbuild.log
+msbuild.err
+msbuild.wrn
+
+## NuGet
+*.nupkg
+*.snupkg
+**/[Pp]ackages/*
+!**/[Pp]ackages/build/
+.nuget/
+
+## Docker
+docker-compose.override.yml
+
+## Runtime data from compose services (only if bind-mounted instead of named volumes)
+ops/prometheus/data/
+ops/grafana/data/
+
+## Environment / secrets
+.env
+.env.*
+*.local.json
+appsettings.*.local.json
+
+## Scratch space
+# Throwaway files (API probe payloads, curl bodies, sample responses) belong here.
+scratch/
+.scratch/
+*.tmp
+*.bak
+*.orig
+*.rej
+*~
+
+# Loose JSON at the repo root is almost always a scratch artifact -- real config
+# lives under src/ or ops/. Ignore it by default and whitelist the exceptions,
+# so a stray probe payload can never be committed by accident.
+/*.json
+!/global.json
+
+## OS
+.DS_Store
+Thumbs.db
+
+## Other
+other/
+.claude/settings.local.json
+CLAUDE.md
+AGENTS.md

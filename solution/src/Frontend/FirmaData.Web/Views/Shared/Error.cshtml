@@ -1,0 +1,18 @@
+@model ErrorViewModel
+@{
+    ViewData["Title"] = "Fejl";
+}
+
+<section class="error-panel" aria-labelledby="error-heading">
+    <h1 id="error-heading">Der opstod en fejl</h1>
+    <p>FirmaData kunne ikke hente dine data lige nu. Prøv igen om et øjeblik.</p>
+
+    @if (Model.ShowRequestId)
+    {
+        <p class="error-panel__correlation">
+            Hvis problemet fortsætter, så oplys venligst dette id: <code>@Model.RequestId</code>
+        </p>
+    }
+
+    <a asp-controller="Home" asp-action="Index" class="btn-primary">Til forsiden</a>
+</section>

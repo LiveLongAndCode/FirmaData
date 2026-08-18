@@ -1,0 +1,50 @@
+@model SearchResultsViewModel
+@{
+    ViewData["Title"] = "Resultater";
+}
+
+<a asp-controller="Home" asp-action="Index" class="back-link">&larr; Ny søgning</a>
+
+<section aria-labelledby="results-heading">
+    <h1 id="results-heading">Resultater for &quot;@Model.Query&quot;</h1>
+
+    @if (Model.Companies.Count == 0)
+    {
+        <p class="empty-state">Der blev ikke fundet nogen virksomheder, der matcher &quot;@Model.Query&quot;.</p>
+    }
+    else
+    {
+        <p class="result-count">
+            @Model.Companies.Count @(Model.Companies.Count == 1 ? "virksomhed fundet" : "virksomheder fundet")
+        </p>
+        <div class="table-wrapper">
+            <table class="results-table">
+                <caption class="visually-hidden">Søgeresultater</caption>
+                <thead>
+                    <tr>
+                        <th scope="col">Navn</th>
+                        <th scope="col">CVR-nummer</th>
+                        <th scope="col">By</th>
+                        <th scope="col">Branche</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var company in Model.Companies)
+                    {
+                        <tr>
+                            <td>
+                                <a asp-controller="Companies" asp-action="Details"
+                                   asp-route-cvrNumber="@company.CvrNumber" asp-route-year="@Model.Year">
+                                    @company.Name
+                                </a>
+                            </td>
+                            <td>@company.CvrNumber</td>
+                            <td>@company.City</td>
+                            <td>@company.IndustryDescription</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+</section>

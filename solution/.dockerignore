@@ -1,0 +1,76 @@
+# Docker build context is ./solution (see docker-compose.yml), not the repository
+# root. Docker reads .dockerignore from the context root, which is why this file
+# lives here rather than one level up.
+#
+# Everything outside solution/ -- docs/, plans/, ops/, .git/, .github/ -- is
+# already outside the context and needs no exclusion. What remains is the build
+# output and the test projects.
+
+## Build output -- must never enter the image; stale bin/obj from the host
+## can also poison the container build with wrong-RID artifacts.
+**/bin/
+**/obj/
+**/out/
+**/publish/
+[Dd]ebug/
+[Rr]elease/
+
+## Editor / IDE
+.vs/
+.vscode/
+.idea/
+*.user
+*.suo
+
+## Tests
+# Excluded deliberately: test projects are never compiled into a runtime image,
+# and leaving them in the context means editing any test file invalidates the
+# COPY layer and forces a needless image rebuild.
+#
+# Because FirmaData.sln lists the test projects but they are not in the context,
+# a solution-level restore fails here:
+#     dotnet restore FirmaData.sln
+#     error MSB3202: The project file "...\FirmaData.Domain.Tests.csproj" was not found.
+#
+# The Dockerfiles therefore restore FirmaData.Build.slnf (solution filter, ships
+# only src/ projects) instead. CI still uses the full FirmaData.sln so tests run.
+tests/
+
+## Test and coverage artifacts
+[Tt]est[Rr]esult*/
+[Cc]overage/
+coverage*.json
+coverage*.xml
+coverage*.info
+*.trx
+*.coverage
+
+## Container definitions -- the Dockerfiles are passed to the daemon explicitly
+Dockerfile*
+.dockerignore
+
+## Scratch, temp, secrets
+scratch/
+.scratch/
+*.tmp
+*.bak
+*.orig
+*.rej
+*~
+.env
+.env.*
+*.local.json
+appsettings.*.local.json
+
+## OS
+.DS_Store
+Thumbs.db
+
+# Deliberately NOT ignored, despite being at the context root:
+#   Directory.Build.props, Directory.Packages.props  -- central package management
+#   .editorconfig                                    -- analyzer rules; excluding it
+#     would let the container build pass where CI fails (warnings-as-errors)
+#   FirmaData.Build.slnf                             -- REQUIRED; what the
+#     Dockerfiles restore (see the Tests section above)
+#   FirmaData.sln                                    -- the filter references it by
+#     path, so it must be present even though it is not restored directly
