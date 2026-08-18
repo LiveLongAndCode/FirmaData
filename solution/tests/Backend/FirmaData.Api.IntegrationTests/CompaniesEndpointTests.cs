@@ -157,15 +157,60 @@ public class CompaniesEndpointTests(ApiFactory factory) : IClassFixture<ApiFacto
         // indistinguishable from a real outage and came back as 503.
         factory.MockServer.ResetMappings();
         factory.MockServer
-            .Given(Request.Create().WithPath("/api/v1/search/company/no%20such%20company").UsingGet())
+            .Given(Request.Create().WithPath("/api/v1/search/company/no such company").UsingGet())
             .RespondWith(Response.Create().WithStatusCode(404));
         using var client = factory.CreateClient();
 
-        using var response = await client.GetAsync("/api/v1/companies?name=no+such+company");
+        using var response = await client.GetAsync("/api/v1/companies?name=no%20such%20company");
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
         var body = await response.Content.ReadFromJsonAsync<List<EnrichedCompanyResponse>>();
         body.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task SearchByName_WithNameShorterThanMinLength_Returns400()
+    {
+        factory.MockServer.ResetMappings();
+        using var client = factory.CreateClient();
+
+        using var response = await client.GetAsync("/api/v1/companies?name=a");
+
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(26)]
+    public async Task SearchByName_WithLimitOutOfRange_Returns400(int limit)
+    {
+        factory.MockServer.ResetMappings();
+        using var client = factory.CreateClient();
+
+        using var response = await client.GetAsync($"/api/v1/companies?name=lb%20forsikring&limit={limit}");
+
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+    }
+
+    [Fact]
+    public async Task SearchByName_WithLimit_ReturnsAtMostThatManyResults()
+    {
+        // Three matches, all sharing the same industry code, so the existing Statbank stub
+        // covers all of them regardless of how many the `limit` cap lets through.
+        factory.MockServer.ResetMappings();
+        factory.MockServer
+            .Given(Request.Create().WithPath("/api/v1/search/company/lb forsikring").UsingGet())
+            .RespondWith(Response.Create().WithStatusCode(200)
+                .WithBody($"[{LbForsikringCvrJson}, {LbForsikringCvrJson}, {LbForsikringCvrJson}]")
+                .WithHeader("Content-Type", "application/json"));
+        GivenStatbankLookupSucceeds();
+        using var client = factory.CreateClient();
+
+        using var response = await client.GetAsync("/api/v1/companies?name=lb%20forsikring&limit=2");
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var body = await response.Content.ReadFromJsonAsync<List<EnrichedCompanyResponse>>();
+        body.Should().HaveCount(2);
     }
 
     [Fact]

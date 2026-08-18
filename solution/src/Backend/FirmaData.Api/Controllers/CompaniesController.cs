@@ -4,6 +4,7 @@ using FirmaData.Application;
 using FirmaData.Contracts;
 using FirmaData.Domain;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Options;
 
 namespace FirmaData.Api.Controllers;
 
@@ -11,10 +12,8 @@ namespace FirmaData.Api.Controllers;
 // response (plan section 5.1).
 [ApiController]
 [Route("api/v1/companies")]
-public sealed class CompaniesController(ICompanyEnrichmentService enrichmentService) : ControllerBase
+public sealed class CompaniesController(ICompanyEnrichmentService enrichmentService, IOptions<SearchOptions> searchOptions) : ControllerBase
 {
-    private const int MaxSearchResults = 10;
-
     [HttpGet("{cvrNumber}")]
     [ProducesResponseType<EnrichedCompanyResponse>(StatusCodes.Status200OK)]
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status400BadRequest)]
@@ -50,11 +49,27 @@ public sealed class CompaniesController(ICompanyEnrichmentService enrichmentServ
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status400BadRequest)]
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status502BadGateway)]
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status503ServiceUnavailable)]
-    public async Task<IActionResult> SearchByName([FromQuery] string? name, [FromQuery] int? year, CancellationToken ct)
+    public async Task<IActionResult> SearchByName([FromQuery] string? name, [FromQuery] int? year, [FromQuery] int? limit, CancellationToken ct)
     {
+        var options = searchOptions.Value;
+
         if (string.IsNullOrWhiteSpace(name))
         {
             return Result.Validation("The 'name' query parameter is required.").ToProblem(HttpContext);
+        }
+
+        if (name.Length < options.MinNameLength || name.Length > options.MaxNameLength)
+        {
+            return Result.Validation(
+                $"The 'name' query parameter must be between {options.MinNameLength} and {options.MaxNameLength} characters.")
+                .ToProblem(HttpContext);
+        }
+
+        var resolvedLimit = limit ?? options.DefaultLimit;
+        if (resolvedLimit < 1 || resolvedLimit > options.MaxLimit)
+        {
+            return Result.Validation($"The 'limit' query parameter must be between 1 and {options.MaxLimit}.")
+                .ToProblem(HttpContext);
         }
 
         if (!TryParseYear(year, out var parsedYear, out var yearError))
@@ -62,19 +77,18 @@ public sealed class CompaniesController(ICompanyEnrichmentService enrichmentServ
             return yearError.ToProblem(HttpContext);
         }
 
-        var enriched = await enrichmentService.SearchAndEnrichAsync(name, parsedYear, ct);
+        var enriched = await enrichmentService.SearchAndEnrichAsync(name, parsedYear, resolvedLimit, ct);
         if (enriched.IsFailure)
         {
             return enriched.Error.ToProblem(HttpContext);
         }
 
-        var results = enriched.Value.Take(MaxSearchResults).ToList();
-        if (results.Any(company => company.StatisticsStatus == EnrichmentStatus.SourceUnavailable))
+        if (enriched.Value.Any(company => company.StatisticsStatus == EnrichmentStatus.SourceUnavailable))
         {
             ApplyDegradedSourceHeader(EnrichmentStatus.SourceUnavailable);
         }
 
-        return Ok(results.Select(company => company.ToResponse()));
+        return Ok(enriched.Value.Select(company => company.ToResponse()));
     }
 
     private static bool TryParseYear(int? year, out StatisticsYear? parsedYear, out ResultError error)

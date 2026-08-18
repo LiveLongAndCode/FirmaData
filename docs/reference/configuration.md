@@ -12,6 +12,11 @@ configuration services. Nested keys use `__` as the separator when set as enviro
 | `Statbank:BaseUrl` | `https://api.statbank.dk/` | Danmarks Statistik base address |
 | `Statbank:FallbackYear` | `2022` | Used only if the live year-discovery call (Statbank's `tableinfo` endpoint) fails |
 | `Api:BaseUrl` (`FirmaData.Web`) | `http://localhost:8080/` | Where the frontend calls the API; overridden to `http://firmadata-api:8080/` inside `docker-compose.yml`, and to `http://localhost:5188/` for local dev |
+| `Search:MinNameLength` | `2` | Shortest `name` accepted by `GET /api/v1/companies?name=`; shorter is `400` |
+| `Search:MaxNameLength` | `100` | Longest `name` accepted; longer is `400` |
+| `Search:DefaultLimit` | `10` | Results returned when the `limit` query parameter is omitted |
+| `Search:MaxLimit` | `25` | Highest `limit` accepted; `0` or above this is `400` |
+| `Search:MaxConcurrentStatisticsCalls` | `4` | Caps how many Statbank lookups a single search can run at once |
 
 There are no credentials to configure: both upstream APIs are public and unauthenticated.
 
