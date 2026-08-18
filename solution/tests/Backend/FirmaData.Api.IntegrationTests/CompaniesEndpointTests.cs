@@ -60,11 +60,11 @@ public class CompaniesEndpointTests(ApiFactory factory) : IClassFixture<ApiFacto
         response.StatusCode.Should().Be(HttpStatusCode.OK);
         var body = await response.Content.ReadFromJsonAsync<EnrichedCompanyResponse>();
         body!.Company.Name.Should().Be("LB FORSIKRING A/S");
-        body.IndustryStatistics!.Workplaces.Should().Be(166);
+        body.IndustryStatistics!.WorkplacesEndNovember.Should().Be(166);
         body.StatisticsStatus.Should().Be("Ok");
         // Deterministic via ApiFactory's FakeTimeProvider (plan fase 7, F9c), not a moving
         // DateTimeOffset.UtcNow.
-        body.RetrievedAt.Should().Be(factory.TimeProvider.GetUtcNow());
+        body.RetrievedAtUtc.Should().Be(factory.TimeProvider.GetUtcNow());
     }
 
     [Fact]

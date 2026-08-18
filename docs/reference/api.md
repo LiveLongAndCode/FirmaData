@@ -14,6 +14,15 @@ Swagger UI at `/swagger` is the authoritative, always-current contract; this pag
 | `GET` | `/health/ready` | Readiness — dependencies checked |
 | `GET` | `/metrics` | Prometheus scrape endpoint |
 
+`industryStatistics` fields (`workplacesEndNovember`, `jobsEndNovember`, `fullTimeEquivalents`,
+`wageSumMillionDkk`) are counted across the *whole industry*, as of end of November for the
+requested year, per Statbank's ERHV1 methodology — not the individual company. They are not
+comparable to `company.employeeCount`, which is the company's own headcount from CVR.
+`retrievedAtUtc` is a now-snapshot of when the response was assembled, not the vintage of the
+data: `company` is always current as of that instant, while `industryStatistics` reflects
+whichever `year` was requested (or resolved) and can be well in the past — the two follow
+different clocks entirely.
+
 ### Example: successful lookup
 
 `GET /api/v1/companies/16500836` — CVR data and Statbank enrichment both succeeded (`200 OK`):
@@ -35,13 +44,13 @@ Swagger UI at `/swagger` is the authoritative, always-current contract; this pag
   "industryStatistics": {
     "industryCode": "651200",
     "year": 2022,
-    "workplaces": 166,
-    "employees": 15206,
+    "workplacesEndNovember": 166,
+    "jobsEndNovember": 15206,
     "fullTimeEquivalents": 13458,
     "wageSumMillionDkk": 10380
   },
   "statisticsStatus": "Ok",
-  "retrievedAt": "2026-08-18T09:12:00Z",
+  "retrievedAtUtc": "2026-08-18T09:12:00Z",
   "sources": {
     "company": "apicvr.dk",
     "statistics": "api.statbank.dk/ERHV1"
@@ -125,7 +134,7 @@ header `FirmaData-Degraded-Source: statbank`:
   },
   "industryStatistics": null,
   "statisticsStatus": "SourceUnavailable",
-  "retrievedAt": "2026-08-18T09:12:00Z",
+  "retrievedAtUtc": "2026-08-18T09:12:00Z",
   "sources": {
     "company": "apicvr.dk",
     "statistics": "api.statbank.dk/ERHV1"

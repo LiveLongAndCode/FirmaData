@@ -29,9 +29,9 @@ public sealed class CompanyDetailViewModel
 
     public string? StatisticsNotice { get; init; }
 
-    public string? WorkplacesDisplay { get; init; }
+    public string? WorkplacesEndNovemberDisplay { get; init; }
 
-    public string? EmployeesDisplay { get; init; }
+    public string? JobsEndNovemberDisplay { get; init; }
 
     public string? FullTimeEquivalentsDisplay { get; init; }
 

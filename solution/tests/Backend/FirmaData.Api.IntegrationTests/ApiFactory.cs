@@ -17,7 +17,7 @@ public sealed class ApiFactory : WebApplicationFactory<Program>
     public WireMockServer MockServer { get; } = WireMockServer.Start();
 
     // Overrides Program.cs's TimeProvider.System registration (plan fase 7, F9c) so tests can
-    // assert a deterministic RetrievedAt instead of a moving DateTimeOffset.UtcNow.
+    // assert a deterministic RetrievedAtUtc instead of a moving DateTimeOffset.UtcNow.
     public FakeTimeProvider TimeProvider { get; } = new(DateTimeOffset.Parse("2026-08-18T09:12:00Z"));
 
     public ApiFactory()

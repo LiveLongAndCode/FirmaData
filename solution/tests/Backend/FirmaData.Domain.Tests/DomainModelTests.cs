@@ -58,8 +58,8 @@ public class DomainModelTests
             null,
             null);
 
-        statistics.Workplaces.Should().BeNull();
-        statistics.Employees.Should().BeNull();
+        statistics.WorkplacesEndNovember.Should().BeNull();
+        statistics.JobsEndNovember.Should().BeNull();
         statistics.FullTimeEquivalents.Should().BeNull();
         statistics.WageSumMillionDkk.Should().BeNull();
     }
