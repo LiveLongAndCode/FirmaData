@@ -6,6 +6,7 @@ frontend that consumes that API like any other client would.
 
 C# / .NET 10, Ports & Adapters (hexagonal) architecture.
 
+
 ```mermaid
 graph LR
     Browser((Browser)) --> Web["FirmaData.Web<br/>MVC"]
